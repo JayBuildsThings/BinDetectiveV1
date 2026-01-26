@@ -281,7 +281,13 @@
                 setAuthMessage('Email and password are required.', true);
                 return;
             }
-            const { data, error } = await supabase.auth.signUp({ email, password });
+            const { data, error } = await supabase.auth.signUp({
+                email,
+                password,
+                options: {
+                    emailRedirectTo: "https://jaybuildsthings.github.io/BinDetectiveV1/dashboard.html"
+                }
+            });
             if (error) {
                 setAuthMessage(error.message, true);
                 return;
