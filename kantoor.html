@@ -40,19 +40,33 @@
 </head>
 <body class="bg-gray-50 text-slate-900 font-display">
 
-    <!-- LOCK SCREEN OVERLAY -->
+    <!-- AUTH LOCK SCREEN OVERLAY -->
     <div id="lock-screen" class="fixed inset-0 z-[100] bg-dark flex items-center justify-center p-6 hidden">
         <div class="max-w-sm w-full bg-white rounded-3xl p-8 shadow-2xl text-center">
             <div class="w-20 h-20 bg-red-50 text-primary rounded-full flex items-center justify-center mx-auto mb-6">
-                <span class="material-symbols-outlined text-4xl">vpn_key</span>
+                <span class="material-symbols-outlined text-4xl">lock</span>
             </div>
-            <h2 class="text-2xl font-black mb-2">Private Vault</h2>
-            <p class="text-gray-500 text-sm mb-8">Enter Team Key to access Dashboard.</p>
-            <input type="password" id="access-key-input" placeholder="Enter Access Key" 
-                   class="w-full h-14 bg-gray-100 border-none rounded-xl text-center font-bold tracking-widest mb-4 focus:ring-2 focus:ring-primary">
-            <button onclick="unlockApp()" class="w-full h-14 bg-primary text-white font-bold rounded-xl shadow-lg active:scale-95 transition-transform">
-                UNLOCK DASHBOARD
-            </button>
+            <h2 class="text-2xl font-black mb-2">Secure Sign In</h2>
+            <p class="text-gray-500 text-sm mb-6">Use your email, password, and company PIN.</p>
+            <div class="flex flex-col gap-3 text-left">
+                <input type="email" id="auth-email" placeholder="Email address" autocomplete="email"
+                       class="w-full h-12 bg-gray-100 border-none rounded-xl px-4 focus:ring-2 focus:ring-primary">
+                <input type="password" id="auth-password" placeholder="Password" autocomplete="current-password"
+                       class="w-full h-12 bg-gray-100 border-none rounded-xl px-4 focus:ring-2 focus:ring-primary">
+                <input type="text" id="auth-company" placeholder="Company name"
+                       class="w-full h-12 bg-gray-100 border-none rounded-xl px-4 focus:ring-2 focus:ring-primary">
+                <input type="password" id="auth-pin" placeholder="4-digit PIN" inputmode="numeric" maxlength="4"
+                       class="w-full h-12 bg-gray-100 border-none rounded-xl px-4 tracking-widest focus:ring-2 focus:ring-primary">
+            </div>
+            <div class="grid grid-cols-2 gap-3 mt-5">
+                <button onclick="signIn()" class="w-full h-12 bg-primary text-white font-bold rounded-xl shadow-lg active:scale-95 transition-transform">
+                    SIGN IN
+                </button>
+                <button onclick="signUp()" class="w-full h-12 bg-gray-200 text-gray-700 font-bold rounded-xl shadow-lg active:scale-95 transition-transform">
+                    SIGN UP
+                </button>
+            </div>
+            <p id="auth-message" class="text-xs text-gray-500 mt-4 min-h-[16px]"></p>
         </div>
     </div>
 
@@ -76,6 +90,9 @@
                     <span>Open App</span>
                     <span class="material-symbols-outlined text-lg">open_in_new</span>
                 </a>
+                <button onclick="logout()" class="text-sm font-bold text-gray-400 hover:text-primary transition-colors">
+                    Logout
+                </button>
             </div>
         </header>
 
@@ -179,29 +196,131 @@
         let markers = [];
         let addressCache = {}; // Cache to prevent re-fetching known coordinates
 
-        // --- INIT ---
-        async function init() {
-            const sharedKey = localStorage.getItem('bin_detective_access_key');
-            if (!sharedKey) {
-                document.getElementById('lock-screen').classList.remove('hidden');
-                return;
-            }
+        let currentCompanyId = null;
+        let currentUser = null;
 
-            try {
-                await supabase.rpc('set_session_key', { key: sharedKey });
-                fetchDashboardData();
-            } catch (err) {
-                console.error(err);
-            }
+        function showLockScreen(show) {
+            const lockScreen = document.getElementById('lock-screen');
+            lockScreen.classList.toggle('hidden', !show);
         }
 
-        window.unlockApp = function() {
-            const key = document.getElementById('access-key-input').value.trim();
-            if (key) {
-                localStorage.setItem('bin_detective_access_key', key);
+        function setAuthMessage(message, isError = false) {
+            const el = document.getElementById('auth-message');
+            if (!el) return;
+            el.innerText = message || '';
+            el.className = `text-xs mt-4 min-h-[16px] ${isError ? 'text-red-500' : 'text-gray-500'}`;
+        }
+
+        async function loadCompanyId() {
+            const { data } = await supabase
+                .from('company_users')
+                .select('company_id')
+                .eq('user_id', currentUser.id)
+                .maybeSingle();
+            if (data?.company_id) {
+                currentCompanyId = data.company_id;
+                return true;
+            }
+            return false;
+        }
+
+        async function ensureCompanyMembership() {
+            const companyName = document.getElementById('auth-company').value.trim();
+            const pin = document.getElementById('auth-pin').value.trim();
+            if (!companyName || !pin) {
+                setAuthMessage('Enter your company name and PIN to continue.', true);
+                return false;
+            }
+            const { error } = await supabase.rpc('claim_company', {
+                p_company_name: companyName,
+                p_pin: pin
+            });
+            if (error && !String(error.message).toLowerCase().includes('duplicate key')) {
+                setAuthMessage(error.message, true);
+                return false;
+            }
+            return loadCompanyId();
+        }
+
+        async function postAuthInit() {
+            if (!currentUser) return;
+            const hasCompany = await loadCompanyId();
+            if (!hasCompany) {
+                const claimed = await ensureCompanyMembership();
+                if (!claimed) {
+                    showLockScreen(true);
+                    return;
+                }
+            }
+            showLockScreen(false);
+            fetchDashboardData();
+        }
+
+        window.signIn = async function() {
+            setAuthMessage('');
+            const email = document.getElementById('auth-email').value.trim();
+            const password = document.getElementById('auth-password').value.trim();
+            if (!email || !password) {
+                setAuthMessage('Email and password are required.', true);
+                return;
+            }
+            const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+            if (error) {
+                setAuthMessage(error.message, true);
+                return;
+            }
+            currentUser = data.user;
+            await postAuthInit();
+        };
+
+        window.signUp = async function() {
+            setAuthMessage('');
+            const email = document.getElementById('auth-email').value.trim();
+            const password = document.getElementById('auth-password').value.trim();
+            if (!email || !password) {
+                setAuthMessage('Email and password are required.', true);
+                return;
+            }
+            const { data, error } = await supabase.auth.signUp({ email, password });
+            if (error) {
+                setAuthMessage(error.message, true);
+                return;
+            }
+            if (!data.session) {
+                setAuthMessage('Check your email to confirm your account.');
+                return;
+            }
+            currentUser = data.user;
+            await postAuthInit();
+        };
+
+        window.logout = async function() {
+            if (confirm("Logout and lock vault?")) {
+                await supabase.auth.signOut();
                 location.reload();
             }
         };
+
+        // --- INIT ---
+        async function init() {
+            const { data } = await supabase.auth.getSession();
+            if (!data.session) {
+                showLockScreen(true);
+            } else {
+                currentUser = data.session.user;
+                await postAuthInit();
+            }
+            supabase.auth.onAuthStateChange(async (_event, session) => {
+                if (!session) {
+                    currentUser = null;
+                    currentCompanyId = null;
+                    showLockScreen(true);
+                    return;
+                }
+                currentUser = session.user;
+                await postAuthInit();
+            });
+        }
 
         // --- NAVIGATION & MAP RESIZE ---
         window.switchView = function(viewName) {

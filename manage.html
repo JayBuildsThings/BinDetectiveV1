@@ -88,19 +88,33 @@
 </head>
 <body class="antialiased text-slate-900 dark:text-white" onclick="closeAllDropdowns(event)">
 
-    <!-- SHARED SECURITY LOCK SCREEN -->
+    <!-- SHARED AUTH LOCK SCREEN -->
     <div id="lock-screen" class="fixed inset-0 z-[100] bg-dark flex items-center justify-center p-6 hidden">
         <div class="max-w-sm w-full bg-white rounded-3xl p-8 shadow-2xl text-center">
             <div class="w-20 h-20 bg-red-50 text-primary rounded-full flex items-center justify-center mx-auto mb-6">
-                <span class="material-symbols-outlined text-4xl">vpn_key</span>
+                <span class="material-symbols-outlined text-4xl">lock</span>
             </div>
-            <h2 class="text-2xl font-black mb-2">Private Vault</h2>
-            <p class="text-gray-500 text-sm mb-8">Enter your Team's Access Key to view bins and contacts.</p>
-            <input type="password" id="access-key-input" placeholder="Enter Access Key" 
-                   class="w-full h-14 bg-gray-100 border-none rounded-xl text-center font-bold tracking-widest mb-4 focus:ring-2 focus:ring-primary">
-            <button onclick="unlockApp()" class="w-full h-14 bg-primary text-white font-bold rounded-xl shadow-lg active:scale-95 transition-transform">
-                UNLOCK APP
-            </button>
+            <h2 class="text-2xl font-black mb-2">Secure Sign In</h2>
+            <p class="text-gray-500 text-sm mb-6">Use your email, password, and company PIN.</p>
+            <div class="flex flex-col gap-3 text-left">
+                <input type="email" id="auth-email" placeholder="Email address" autocomplete="email"
+                       class="w-full h-12 bg-gray-100 border-none rounded-xl px-4 focus:ring-2 focus:ring-primary">
+                <input type="password" id="auth-password" placeholder="Password" autocomplete="current-password"
+                       class="w-full h-12 bg-gray-100 border-none rounded-xl px-4 focus:ring-2 focus:ring-primary">
+                <input type="text" id="auth-company" placeholder="Company name"
+                       class="w-full h-12 bg-gray-100 border-none rounded-xl px-4 focus:ring-2 focus:ring-primary">
+                <input type="password" id="auth-pin" placeholder="4-digit PIN" inputmode="numeric" maxlength="4"
+                       class="w-full h-12 bg-gray-100 border-none rounded-xl px-4 tracking-widest focus:ring-2 focus:ring-primary">
+            </div>
+            <div class="grid grid-cols-2 gap-3 mt-5">
+                <button onclick="signIn()" class="w-full h-12 bg-primary text-white font-bold rounded-xl shadow-lg active:scale-95 transition-transform">
+                    SIGN IN
+                </button>
+                <button onclick="signUp()" class="w-full h-12 bg-gray-200 text-gray-700 font-bold rounded-xl shadow-lg active:scale-95 transition-transform">
+                    SIGN UP
+                </button>
+            </div>
+            <p id="auth-message" class="text-xs text-gray-500 mt-4 min-h-[16px]"></p>
         </div>
     </div>
 
@@ -314,15 +328,129 @@
 
         window.masterBins = []; 
         window.requestsData = []; 
+        let currentCompanyId = null;
+        let currentUser = null;
 
-        async function initSecurity() {
-            const sharedKey = localStorage.getItem('bin_detective_access_key');
-            if (!sharedKey) {
-                document.getElementById('lock-screen').classList.remove('hidden');
+        function showLockScreen(show) {
+            const lockScreen = document.getElementById('lock-screen');
+            lockScreen.classList.toggle('hidden', !show);
+        }
+
+        function setAuthMessage(message, isError = false) {
+            const el = document.getElementById('auth-message');
+            if (!el) return;
+            el.innerText = message || '';
+            el.className = `text-xs mt-4 min-h-[16px] ${isError ? 'text-red-500' : 'text-gray-500'}`;
+        }
+
+        async function loadCompanyId() {
+            const { data } = await supabase
+                .from('company_users')
+                .select('company_id')
+                .eq('user_id', currentUser.id)
+                .maybeSingle();
+            if (data?.company_id) {
+                currentCompanyId = data.company_id;
+                return true;
+            }
+            return false;
+        }
+
+        async function ensureCompanyMembership() {
+            const companyName = document.getElementById('auth-company').value.trim();
+            const pin = document.getElementById('auth-pin').value.trim();
+            if (!companyName || !pin) {
+                setAuthMessage('Enter your company name and PIN to continue.', true);
+                return false;
+            }
+            const { error } = await supabase.rpc('claim_company', {
+                p_company_name: companyName,
+                p_pin: pin
+            });
+            if (error && !String(error.message).toLowerCase().includes('duplicate key')) {
+                setAuthMessage(error.message, true);
+                return false;
+            }
+            return loadCompanyId();
+        }
+
+        async function postAuthInit() {
+            if (!currentUser) return;
+            const hasCompany = await loadCompanyId();
+            if (!hasCompany) {
+                const claimed = await ensureCompanyMembership();
+                if (!claimed) {
+                    showLockScreen(true);
+                    return;
+                }
+            }
+            showLockScreen(false);
+            fetchMasterBins();
+        }
+
+        window.signIn = async function() {
+            setAuthMessage('');
+            const email = document.getElementById('auth-email').value.trim();
+            const password = document.getElementById('auth-password').value.trim();
+            if (!email || !password) {
+                setAuthMessage('Email and password are required.', true);
                 return;
             }
-            await supabase.rpc('set_session_key', { key: sharedKey });
-            fetchMasterBins();
+            const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+            if (error) {
+                setAuthMessage(error.message, true);
+                return;
+            }
+            currentUser = data.user;
+            await postAuthInit();
+        };
+
+        window.signUp = async function() {
+            setAuthMessage('');
+            const email = document.getElementById('auth-email').value.trim();
+            const password = document.getElementById('auth-password').value.trim();
+            if (!email || !password) {
+                setAuthMessage('Email and password are required.', true);
+                return;
+            }
+            const { data, error } = await supabase.auth.signUp({ email, password });
+            if (error) {
+                setAuthMessage(error.message, true);
+                return;
+            }
+            if (!data.session) {
+                setAuthMessage('Check your email to confirm your account.');
+                return;
+            }
+            currentUser = data.user;
+            await postAuthInit();
+        };
+
+        window.logout = async function() {
+            if (confirm("Logout and lock vault?")) {
+                await supabase.auth.signOut();
+                location.reload();
+            }
+        };
+
+        async function initAuth() {
+            const { data } = await supabase.auth.getSession();
+            if (!data.session) {
+                showLockScreen(true);
+            } else {
+                currentUser = data.session.user;
+                await postAuthInit();
+            }
+            supabase.auth.onAuthStateChange(async (_event, session) => {
+                if (!session) {
+                    currentUser = null;
+                    currentCompanyId = null;
+                    showLockScreen(true);
+                    return;
+                }
+                currentUser = session.user;
+                await postAuthInit();
+            });
         }
 
         async function fetchMasterBins() {
@@ -331,15 +459,6 @@
                 window.masterBins = data.map(b => b.bin_id).sort((a,b) => a.localeCompare(b, undefined, {numeric:true}));
             }
         }
-
-        window.unlockApp = function() {
-            const key = document.getElementById('access-key-input').value.trim();
-            if (key) { localStorage.setItem('bin_detective_access_key', key); location.reload(); }
-        };
-
-        window.logout = function() {
-            if(confirm("Logout and lock vault?")) { localStorage.removeItem('bin_detective_access_key'); location.reload(); }
-        };
 
         window.handleBinSearch = function(input) {
             const val = input.value.trim().toLowerCase();
@@ -377,12 +496,12 @@
 
         window.submitLog = async function() {
             const btn = document.getElementById('submit-btn');
-            const sharedKey = localStorage.getItem('bin_detective_access_key');
             const binId = document.getElementById('log-bin-id').value.trim();
             const address = document.getElementById('log-address').value.trim();
             
             if(!binId) return window.showToast("Please select a Bin", true);
             if(!address) return window.showToast("Please enter an Address", true);
+            if(!currentCompanyId) return window.showToast("Company access missing. Please sign in again.", true);
             if (!window.masterBins.includes(binId)) return window.showToast(`Error: Bin #${binId} does not exist in Master List`, true);
 
             btn.disabled = true;
@@ -390,12 +509,12 @@
 
             try {
                 const { error } = await supabase.from('activity_logs').insert([{
+                    company_id: currentCompanyId,
                     bin_id: binId,
                     client_name: document.getElementById('log-client-name').value,
                     address: address,
                     phone_number: document.getElementById('log-phone').value,
-                    activity_type: document.getElementById('log-type').value,
-                    access_key: sharedKey
+                    activity_type: document.getElementById('log-type').value
                 }]);
                 if (error) throw error;
                 window.showToast("Activity Logged!");
@@ -654,7 +773,7 @@
             }
         };
 
-        initSecurity();
+        initAuth();
     </script>
 </body>
 </html>

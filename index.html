@@ -70,15 +70,16 @@
 
         <form onsubmit="submitRequest(event)" class="flex flex-col gap-4">
             <input type="hidden" id="req_type">
-            
-            <!-- Company Code (Hidden, populated by logic) -->
-            <input type="hidden" id="access_key"> 
-            
-            <!-- Fallback container (Only shown if NO key is found at all) -->
-            <div id="company-code-container" class="hidden">
-                <label class="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Company Code</label>
-                <input type="text" id="manual_key_input" placeholder="Enter provided code" class="w-full rounded-xl border-gray-200 h-12 focus:border-primary focus:ring-primary">
-                <p class="text-xs text-red-400 mt-1 font-bold">Please enter the Team Code manually.</p>
+
+            <div>
+                <label class="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Company Name</label>
+                <input type="text" id="company_name" required placeholder="Enter company name" class="w-full rounded-xl border-gray-200 h-12 focus:border-primary focus:ring-primary placeholder-gray-300">
+            </div>
+
+            <div>
+                <label class="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Company PIN</label>
+                <input type="password" id="company_pin" required inputmode="numeric" maxlength="4" placeholder="4-digit PIN" class="w-full rounded-xl border-gray-200 h-12 focus:border-primary focus:ring-primary placeholder-gray-300 tracking-widest">
+                <p class="text-xs text-gray-400 mt-1 font-bold">This PIN is provided by your company.</p>
             </div>
 
             <div>
@@ -131,26 +132,11 @@
         const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNqcHpvemdzbGFoZHp3cXdqdGJyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njk0MzYyNjcsImV4cCI6MjA4NTAxMjI2N30.1x59I-8n8NAcxnKR4FC39UHkVVp2K-9q1ZlxsUJ57xU';
         const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
 
-        // =========================================================
-        //  CONFIGURATION: DEFAULT COMPANY CODE
-        //  Change the value below to your Team Key (e.g. 'Bin2025')
-        // =========================================================
-        const DEFAULT_ACCESS_KEY = '1111'; 
-        // =========================================================
-
         window.onload = function() {
             const urlParams = new URLSearchParams(window.location.search);
-            const urlKey = urlParams.get('key');
-            
-            // Logic: Use URL key if present, otherwise use Default Key
-            const finalKey = urlKey || DEFAULT_ACCESS_KEY;
-
-            if (finalKey) {
-                document.getElementById('access_key').value = finalKey;
-            } else {
-                // Only show this field if NO key exists (not even a default one)
-                document.getElementById('company-code-container').classList.remove('hidden');
-                document.getElementById('manual_key_input').required = true;
+            const companyName = urlParams.get('company');
+            if (companyName) {
+                document.getElementById('company_name').value = companyName;
             }
         };
 
@@ -189,13 +175,6 @@
             btn.disabled = true;
             btn.innerHTML = 'Sending...';
 
-            // Determine which key to use (Hidden default/url OR Manual input)
-            let usedKey = document.getElementById('access_key').value;
-            const manualKey = document.getElementById('manual_key_input').value;
-            if (!usedKey && manualKey) {
-                usedKey = manualKey;
-            }
-
             // Compile Notes (Include date if present)
             let noteContent = document.getElementById('notes').value;
             const dateNeeded = document.getElementById('date_needed').value;
@@ -207,19 +186,19 @@
             }
 
             const payload = {
-                request_type: type,
-                client_name: document.getElementById('client_name').value,
-                address: document.getElementById('address').value,
-                phone: document.getElementById('phone').value,
-                notes: noteContent.trim(),
-                access_key: usedKey,
-                status: 'Pending'
+                p_company_name: document.getElementById('company_name').value.trim(),
+                p_pin: document.getElementById('company_pin').value.trim(),
+                p_request_type: type,
+                p_client_name: document.getElementById('client_name').value,
+                p_address: document.getElementById('address').value,
+                p_phone: document.getElementById('phone').value,
+                p_notes: noteContent.trim()
             };
 
             try {
-                if(!payload.access_key) throw new Error("Invalid Link: No Company Code found.");
+                if(!payload.p_company_name || !payload.p_pin) throw new Error("Company name and PIN are required.");
 
-                const { error } = await supabase.from('service_requests').insert([payload]);
+                const { error } = await supabase.rpc('create_service_request', payload);
                 if (error) throw error;
 
                 document.getElementById('view-form').classList.add('hidden');
