@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+    <meta name="theme-color" content="#ec1313">
+    <title>Service Request | Bin Detective</title>
+    
+    <link rel="icon" type="image/svg+xml" href="icon.svg">
+    <link href="https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;500;700&display=swap" rel="stylesheet"/>
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+    <script src="https://cdn.tailwindcss.com?plugins=forms"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.7/dist/umd/supabase.js"></script>
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: { "primary": "#ec1313", "dark": "#221010" },
+                    fontFamily: { "display": ["Lexend", "sans-serif"] }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-gray-50 text-slate-900 font-display min-h-screen flex flex-col">
+
+    <!-- HEADER -->
+    <header class="bg-white p-6 shadow-sm flex justify-center">
+        <h1 class="text-2xl font-extrabold tracking-tight">BIN<span class="text-primary">DETECTIVE</span></h1>
+    </header>
+
+    <!-- VIEW 1: SELECTION MENU -->
+    <main id="view-menu" class="flex-1 flex flex-col items-center justify-center p-6 gap-6 max-w-md mx-auto w-full">
+        <div class="text-center mb-4">
+            <h2 class="text-2xl font-bold mb-2">How can we help?</h2>
+            <p class="text-gray-500">Select a service below to get started.</p>
+        </div>
+
+        <button onclick="openForm('New Bin')" class="w-full bg-white p-6 rounded-2xl shadow-sm border-2 border-gray-200 hover:border-primary group transition-all duration-300 transform active:scale-95 text-left flex items-center gap-5">
+            <div class="w-16 h-16 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center shrink-0 group-hover:bg-primary group-hover:text-white transition-colors">
+                <span class="material-symbols-outlined text-3xl">delete</span>
+            </div>
+            <div>
+                <h3 class="text-lg font-bold text-gray-900">Request New Bin</h3>
+                <p class="text-sm text-gray-500">I need a bin delivered to my site</p>
+            </div>
+            <span class="material-symbols-outlined ml-auto text-gray-300 group-hover:text-primary">arrow_forward</span>
+        </button>
+
+        <button onclick="openForm('Pickup')" class="w-full bg-white p-6 rounded-2xl shadow-sm border-2 border-gray-200 hover:border-primary group transition-all duration-300 transform active:scale-95 text-left flex items-center gap-5">
+            <div class="w-16 h-16 rounded-full bg-green-50 text-green-600 flex items-center justify-center shrink-0 group-hover:bg-primary group-hover:text-white transition-colors">
+                <span class="material-symbols-outlined text-3xl">local_shipping</span>
+            </div>
+            <div>
+                <h3 class="text-lg font-bold text-gray-900">Request Pickup</h3>
+                <p class="text-sm text-gray-500">I need a bin collected or emptied</p>
+            </div>
+            <span class="material-symbols-outlined ml-auto text-gray-300 group-hover:text-primary">arrow_forward</span>
+        </button>
+    </main>
+
+    <!-- VIEW 2: FORM -->
+    <main id="view-form" class="hidden flex-1 flex flex-col p-6 max-w-md mx-auto w-full">
+        <button onclick="showMenu()" class="mb-6 flex items-center gap-2 text-gray-500 font-bold text-sm hover:text-primary self-start">
+            <span class="material-symbols-outlined">arrow_back</span> Back
+        </button>
+
+        <h2 id="form-title" class="text-3xl font-black mb-6">Request Service</h2>
+
+        <form onsubmit="submitRequest(event)" class="flex flex-col gap-4">
+            <input type="hidden" id="req_type">
+            
+            <!-- Company Code (Hidden, populated by logic) -->
+            <input type="hidden" id="access_key"> 
+            
+            <!-- Fallback container (Only shown if NO key is found at all) -->
+            <div id="company-code-container" class="hidden">
+                <label class="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Company Code</label>
+                <input type="text" id="manual_key_input" placeholder="Enter provided code" class="w-full rounded-xl border-gray-200 h-12 focus:border-primary focus:ring-primary">
+                <p class="text-xs text-red-400 mt-1 font-bold">Please enter the Team Code manually.</p>
+            </div>
+
+            <div>
+                <label class="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Your Name</label>
+                <input type="text" id="client_name" required class="w-full rounded-xl border-gray-200 h-12 focus:border-primary focus:ring-primary placeholder-gray-300">
+            </div>
+
+            <div>
+                <label class="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Address</label>
+                <input type="text" id="address" required class="w-full rounded-xl border-gray-200 h-12 focus:border-primary focus:ring-primary placeholder-gray-300">
+            </div>
+
+            <div>
+                <label class="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Phone Number</label>
+                <input type="tel" id="phone" required class="w-full rounded-xl border-gray-200 h-12 focus:border-primary focus:ring-primary placeholder-gray-300">
+            </div>
+
+            <!-- Date Field (Dynamic Label) -->
+            <div id="date-container" class="hidden">
+                <label id="date-label" class="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Date Needed:</label>
+                <input type="date" id="date_needed" class="w-full rounded-xl border-gray-200 h-12 focus:border-primary focus:ring-primary text-gray-700">
+            </div>
+
+            <div>
+                <label class="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Notes (Optional)</label>
+                <textarea id="notes" rows="3" class="w-full rounded-xl border-gray-200 focus:border-primary focus:ring-primary placeholder-gray-300"></textarea>
+            </div>
+
+            <button type="submit" id="submit-btn" class="mt-4 w-full bg-primary text-white h-14 rounded-xl font-bold text-lg shadow-lg active:scale-95 transition-transform flex items-center justify-center gap-2">
+                <span>SUBMIT REQUEST</span>
+                <span class="material-symbols-outlined">send</span>
+            </button>
+        </form>
+    </main>
+
+    <!-- VIEW 3: SUCCESS -->
+    <main id="view-success" class="hidden flex-1 flex flex-col items-center justify-center p-6 text-center max-w-md mx-auto w-full">
+        <div class="w-24 h-24 bg-green-100 text-green-600 rounded-full flex items-center justify-center mb-6 animate-bounce">
+            <span class="material-symbols-outlined text-5xl">check</span>
+        </div>
+        <h2 class="text-3xl font-black mb-2">Request Sent!</h2>
+        <p class="text-gray-500 mb-8">We have received your request and will be in touch shortly.</p>
+        <button onclick="location.reload()" class="bg-gray-100 text-gray-600 px-6 py-3 rounded-xl font-bold hover:bg-gray-200 transition-colors">
+            Start New Request
+        </button>
+    </main>
+
+    <script>
+        const supabaseUrl = 'https://heuhhpjdcphdcrpwmirl.supabase.co';
+        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhldWhocGpkY3BoZGNycHdtaXJsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjU5NzIxMTksImV4cCI6MjA4MTU0ODExOX0.FGaDzZFo26DJvMOo5KshwtKLlCXSxVyz-bGBJkD26dI';
+        const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
+
+        // =========================================================
+        //  CONFIGURATION: DEFAULT COMPANY CODE
+        //  Change the value below to your Team Key (e.g. 'Bin2025')
+        // =========================================================
+        const DEFAULT_ACCESS_KEY = '1111'; 
+        // =========================================================
+
+        window.onload = function() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const urlKey = urlParams.get('key');
+            
+            // Logic: Use URL key if present, otherwise use Default Key
+            const finalKey = urlKey || DEFAULT_ACCESS_KEY;
+
+            if (finalKey) {
+                document.getElementById('access_key').value = finalKey;
+            } else {
+                // Only show this field if NO key exists (not even a default one)
+                document.getElementById('company-code-container').classList.remove('hidden');
+                document.getElementById('manual_key_input').required = true;
+            }
+        };
+
+        function openForm(type) {
+            document.getElementById('view-menu').classList.add('hidden');
+            document.getElementById('view-form').classList.remove('hidden');
+            
+            document.getElementById('req_type').value = type;
+            document.getElementById('form-title').innerText = type === 'Pickup' ? 'Request Pickup' : 'Request New Bin';
+            
+            // Show Date field for BOTH (updated logic)
+            const dateContainer = document.getElementById('date-container');
+            const dateLabel = document.getElementById('date-label');
+            const dateInput = document.getElementById('date_needed');
+
+            dateContainer.classList.remove('hidden');
+            dateInput.required = true;
+
+            if (type === 'New Bin') {
+                dateLabel.innerText = "Bin needed on:";
+            } else {
+                dateLabel.innerText = "Pickup needed on:";
+            }
+        }
+
+        function showMenu() {
+            document.getElementById('view-form').classList.add('hidden');
+            document.getElementById('view-menu').classList.remove('hidden');
+        }
+
+        async function submitRequest(e) {
+            e.preventDefault();
+            const btn = document.getElementById('submit-btn');
+            const originalText = btn.innerHTML;
+            
+            btn.disabled = true;
+            btn.innerHTML = 'Sending...';
+
+            // Determine which key to use (Hidden default/url OR Manual input)
+            let usedKey = document.getElementById('access_key').value;
+            const manualKey = document.getElementById('manual_key_input').value;
+            if (!usedKey && manualKey) {
+                usedKey = manualKey;
+            }
+
+            // Compile Notes (Include date if present)
+            let noteContent = document.getElementById('notes').value;
+            const dateNeeded = document.getElementById('date_needed').value;
+            const type = document.getElementById('req_type').value;
+
+            if (dateNeeded) {
+                const label = type === 'Pickup' ? "PICKUP ON:" : "NEEDED ON:";
+                noteContent = `${label} ${dateNeeded}\n${noteContent}`;
+            }
+
+            const payload = {
+                request_type: type,
+                client_name: document.getElementById('client_name').value,
+                address: document.getElementById('address').value,
+                phone: document.getElementById('phone').value,
+                notes: noteContent.trim(),
+                access_key: usedKey,
+                status: 'Pending'
+            };
+
+            try {
+                if(!payload.access_key) throw new Error("Invalid Link: No Company Code found.");
+
+                const { error } = await supabase.from('service_requests').insert([payload]);
+                if (error) throw error;
+
+                document.getElementById('view-form').classList.add('hidden');
+                document.getElementById('view-success').classList.remove('hidden');
+            } catch (err) {
+                alert("Submission Failed: " + err.message);
+                btn.disabled = false;
+                btn.innerHTML = originalText;
+            }
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,15 @@
+{
+  "name": "Bin Detective",
+  "short_name": "Bin Detective",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#f8f6f6",
+  "theme_color": "#ec1313",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml"
+    }
+  ]
+}
