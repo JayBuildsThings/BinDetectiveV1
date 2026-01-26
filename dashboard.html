@@ -84,6 +84,9 @@
                 <button onclick="switchView('map')" id="nav-map" class="nav-btn bg-white text-gray-500 border border-gray-200 px-4 py-2 rounded-lg font-bold text-sm transition-all hover:text-primary hover:border-primary flex items-center gap-2">
                     <span class="material-symbols-outlined text-lg">map</span> Map
                 </button>
+                <button onclick="openAddBin()" class="bg-primary text-white px-4 py-2 rounded-lg font-bold text-sm transition-all hover:opacity-90 flex items-center gap-2">
+                    <span class="material-symbols-outlined text-lg">add</span> Add Bin
+                </button>
                 
                 <div class="w-px h-8 bg-gray-200 mx-2"></div>
                 <a href="manage.html" class="flex items-center gap-2 text-sm font-bold text-gray-500 hover:text-primary transition-colors">
@@ -95,6 +98,24 @@
                 </button>
             </div>
         </header>
+
+        <!-- ADD BIN MODAL -->
+        <div id="add-bin-modal" class="fixed inset-0 z-[110] bg-black/40 hidden items-center justify-center p-6">
+            <div class="w-full max-w-sm bg-white rounded-2xl p-6 shadow-2xl">
+                <div class="flex items-center justify-between mb-4">
+                    <h2 class="text-lg font-black text-dark">Add Bin</h2>
+                    <button onclick="closeAddBin()" class="text-gray-400 hover:text-gray-600">
+                        <span class="material-symbols-outlined">close</span>
+                    </button>
+                </div>
+                <label class="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Bin ID</label>
+                <input type="text" id="new-bin-id" placeholder="e.g. 101" class="w-full rounded-xl border-gray-200 h-12 focus:border-primary focus:ring-primary text-gray-700">
+                <div class="flex gap-3 mt-5">
+                    <button onclick="closeAddBin()" class="flex-1 h-11 rounded-xl bg-gray-100 text-gray-600 font-bold">Cancel</button>
+                    <button onclick="submitAddBin()" class="flex-1 h-11 rounded-xl bg-primary text-white font-bold">Add</button>
+                </div>
+            </div>
+        </div>
 
         <!-- VIEW: OVERVIEW -->
         <div id="view-overview" class="view active">
@@ -305,6 +326,47 @@
                 await supabase.auth.signOut();
                 location.reload();
             }
+        };
+
+        window.openAddBin = function() {
+            if (!currentCompanyId) {
+                alert("Company access missing. Please sign in again.");
+                return;
+            }
+            document.getElementById('new-bin-id').value = '';
+            document.getElementById('add-bin-modal').classList.remove('hidden');
+            document.getElementById('add-bin-modal').classList.add('flex');
+        };
+
+        window.closeAddBin = function() {
+            const modal = document.getElementById('add-bin-modal');
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+        };
+
+        window.submitAddBin = async function() {
+            const binId = document.getElementById('new-bin-id').value.trim();
+            if (!binId) {
+                alert("Please enter a bin ID.");
+                return;
+            }
+            if (!currentCompanyId) {
+                alert("Company access missing. Please sign in again.");
+                return;
+            }
+
+            const { error } = await supabase.from('master_bins').insert([{
+                company_id: currentCompanyId,
+                bin_id: binId
+            }]);
+
+            if (error) {
+                alert(error.message);
+                return;
+            }
+
+            closeAddBin();
+            fetchDashboardData();
         };
 
         // --- INIT ---
