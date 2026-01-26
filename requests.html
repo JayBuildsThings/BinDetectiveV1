@@ -34,7 +34,7 @@
     <main id="view-menu" class="flex-1 flex flex-col items-center justify-center p-6 gap-6 max-w-md mx-auto w-full">
         <div class="text-center mb-4">
             <h2 class="text-2xl font-bold mb-2">How can we help?</h2>
-            <p class="text-gray-500">Select a service below to get started.</p>
+            <p id="company-header" class="text-gray-500">Select a service below to get started.</p>
         </div>
 
         <button onclick="openForm('New Bin')" class="w-full bg-white p-6 rounded-2xl shadow-sm border-2 border-gray-200 hover:border-primary group transition-all duration-300 transform active:scale-95 text-left flex items-center gap-5">
@@ -71,15 +71,15 @@
         <form onsubmit="submitRequest(event)" class="flex flex-col gap-4">
             <input type="hidden" id="req_type">
 
-            <div>
+            <div id="company-name-group">
                 <label class="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Company Name</label>
                 <input type="text" id="company_name" required placeholder="Enter company name" class="w-full rounded-xl border-gray-200 h-12 focus:border-primary focus:ring-primary placeholder-gray-300">
             </div>
 
-            <div>
-                <label class="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Company PIN</label>
-                <input type="password" id="company_pin" required inputmode="numeric" maxlength="4" placeholder="4-digit PIN" class="w-full rounded-xl border-gray-200 h-12 focus:border-primary focus:ring-primary placeholder-gray-300 tracking-widest">
-                <p class="text-xs text-gray-400 mt-1 font-bold">This PIN is provided by your company.</p>
+            <div id="company-token-group">
+                <label class="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Company Access Token</label>
+                <input type="password" id="company_token" required placeholder="Enter access token" class="w-full rounded-xl border-gray-200 h-12 focus:border-primary focus:ring-primary placeholder-gray-300">
+                <p class="text-xs text-gray-400 mt-1 font-bold">Use the secure link provided by your company.</p>
             </div>
 
             <div>
@@ -135,8 +135,18 @@
         window.onload = function() {
             const urlParams = new URLSearchParams(window.location.search);
             const companyName = urlParams.get('company');
+            const companyToken = urlParams.get('token');
+
             if (companyName) {
                 document.getElementById('company_name').value = companyName;
+                document.getElementById('company-name-group').classList.add('hidden');
+                const header = document.getElementById('company-header');
+                header.innerText = `Requesting service for ${companyName}`;
+            }
+
+            if (companyToken) {
+                document.getElementById('company_token').value = companyToken;
+                document.getElementById('company-token-group').classList.add('hidden');
             }
         };
 
@@ -187,7 +197,7 @@
 
             const payload = {
                 p_company_name: document.getElementById('company_name').value.trim(),
-                p_pin: document.getElementById('company_pin').value.trim(),
+                p_token: document.getElementById('company_token').value.trim(),
                 p_request_type: type,
                 p_client_name: document.getElementById('client_name').value,
                 p_address: document.getElementById('address').value,
@@ -196,7 +206,7 @@
             };
 
             try {
-                if(!payload.p_company_name || !payload.p_pin) throw new Error("Company name and PIN are required.");
+                if(!payload.p_company_name || !payload.p_token) throw new Error("Company name and access token are required.");
 
                 const { error } = await supabase.rpc('create_service_request', payload);
                 if (error) throw error;
