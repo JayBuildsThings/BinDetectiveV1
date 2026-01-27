@@ -387,6 +387,32 @@
             return hash.includes('type=recovery') || hash.includes('type=invite');
         }
 
+        function sleep(ms) {
+            return new Promise(resolve => setTimeout(resolve, ms));
+        }
+
+        async function runWithRetry(label, fn, attempts = 3) {
+            let lastError;
+            for (let attempt = 1; attempt <= attempts; attempt++) {
+                const { data, error } = await fn();
+                if (!error) return { data };
+                lastError = error;
+                console.warn(`${label} attempt ${attempt} failed`, error);
+                await sleep(400 * attempt);
+            }
+            return { error: lastError };
+        }
+
+        function renderLoadError(container, message, retryFnName) {
+            container.innerHTML = `
+                <p class="text-center text-red-500 mt-10">
+                    ${message}
+                    <span class="block mt-3">
+                        <button onclick="${retryFnName}()" class="text-xs font-bold text-primary underline">Retry</button>
+                    </span>
+                </p>`;
+        }
+
         async function loadCompanyId() {
             const { data } = await supabase
                 .from('company_users')
@@ -637,8 +663,13 @@
 
         window.loadBinLocations = async function() {
             const container = document.getElementById('bin-list-container');
-            const { data, error } = await supabase.from('activity_logs').select('*').order('created_at', { ascending: false });
-            if (error) { container.innerHTML = `<p class="text-center text-red-500 mt-10">Access Denied</p>`; return; }
+            container.innerHTML = `<p class="text-center text-gray-500 mt-10 animate-pulse">Loading bin locations...</p>`;
+            const res = await runWithRetry('bin locations', () => supabase.from('activity_logs').select('*').order('created_at', { ascending: false }));
+            if (res.error) {
+                renderLoadError(container, res.error.message || 'Unable to load bin locations.', 'loadBinLocations');
+                return;
+            }
+            const data = res.data || [];
             
             const uniqueBins = new Map();
             data.forEach(log => { if(log.bin_id && !uniqueBins.has(log.bin_id)) uniqueBins.set(log.bin_id, log); });
@@ -690,8 +721,13 @@
 
         window.loadContacts = async function() {
             const container = document.getElementById('contact-list-container');
-            const { data, error } = await supabase.from('activity_logs').select('*').order('created_at', { ascending: false });
-            if (error) return;
+            container.innerHTML = `<p class="text-center text-gray-500 mt-10 animate-pulse">Fetching your vault...</p>`;
+            const res = await runWithRetry('contacts', () => supabase.from('activity_logs').select('*').order('created_at', { ascending: false }));
+            if (res.error) {
+                renderLoadError(container, res.error.message || 'Unable to load contacts.', 'loadContacts');
+                return;
+            }
+            const data = res.data || [];
             const uniqueClients = new Map();
             data.forEach(log => { if(log.client_name && !uniqueClients.has(log.client_name)) uniqueClients.set(log.client_name, log); });
             window.allContacts = Array.from(uniqueClients.values()).sort((a,b) => a.client_name.localeCompare(b.client_name));
@@ -743,11 +779,11 @@
             
             try {
                 // Fetch All Requests (Unsorted by SQL)
-                const { data, error } = await supabase
+                const res = await runWithRetry('requests', () => supabase
                     .from('service_requests')
-                    .select('*');
-                
-                if (error) throw error;
+                    .select('*'));
+                if (res.error) throw res.error;
+                const data = res.data || [];
                 if (!data || data.length === 0) {
                     container.innerHTML = `<p class="text-center text-gray-500 mt-10">No pending requests.</p>`;
                     return;
@@ -836,7 +872,7 @@
 
             } catch(e) {
                 console.error(e);
-                container.innerHTML = `<p class="text-center text-red-500 mt-10">Error loading requests.</p>`;
+                renderLoadError(container, e.message || 'Error loading requests.', 'loadRequests');
             }
         };
 

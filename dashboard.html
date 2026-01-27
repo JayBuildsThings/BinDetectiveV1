@@ -281,6 +281,35 @@
             return hash.includes('type=recovery') || hash.includes('type=invite');
         }
 
+        function sleep(ms) {
+            return new Promise(resolve => setTimeout(resolve, ms));
+        }
+
+        async function runWithRetry(label, fn, attempts = 3) {
+            let lastError;
+            for (let attempt = 1; attempt <= attempts; attempt++) {
+                const { data, error } = await fn();
+                if (!error) return { data };
+                lastError = error;
+                console.warn(`${label} attempt ${attempt} failed`, error);
+                await sleep(400 * attempt);
+            }
+            return { error: lastError };
+        }
+
+        function setDashboardError(message) {
+            const tbody = document.getElementById('dashboard-body');
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="6" class="px-6 py-10 text-center text-red-500">
+                        ${message}
+                        <div class="mt-3">
+                            <button onclick="fetchDashboardData()" class="text-xs font-bold text-primary underline">Retry</button>
+                        </div>
+                    </td>
+                </tr>`;
+        }
+
         async function loadCompanyId() {
             const { data } = await supabase
                 .from('company_users')
@@ -623,10 +652,20 @@
         // --- DASHBOARD DATA ---
         async function fetchDashboardData() {
             const tbody = document.getElementById('dashboard-body');
-            const { data: bins } = await supabase.from('master_bins').select('bin_id');
-            const { data: logs } = await supabase.from('activity_logs').select('*').order('created_at', { ascending: false });
+            tbody.innerHTML = `<tr><td colspan="6" class="px-6 py-10 text-center text-gray-400">Loading data...</td></tr>`;
+            const binsRes = await runWithRetry('master_bins', () => supabase.from('master_bins').select('bin_id'));
+            if (binsRes.error) {
+                setDashboardError(binsRes.error.message || 'Unable to load bins.');
+                return;
+            }
+            const logsRes = await runWithRetry('activity_logs', () => supabase.from('activity_logs').select('*').order('created_at', { ascending: false }));
+            if (logsRes.error) {
+                setDashboardError(logsRes.error.message || 'Unable to load activity logs.');
+                return;
+            }
 
-            if (!bins || !logs) return;
+            const bins = binsRes.data || [];
+            const logs = logsRes.data || [];
 
             const binMap = new Map();
             bins.forEach(b => {
