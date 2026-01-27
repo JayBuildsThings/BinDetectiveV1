@@ -364,7 +364,9 @@
                 .eq('company_id', currentCompanyId)
                 .order('email', { ascending: true });
             if (error) {
-                tbody.innerHTML = '<tr><td colspan="4" class="px-6 py-10 text-center text-red-500">Unable to load users.</td></tr>';
+                const detail = error.message || 'Unable to load users.';
+                tbody.innerHTML = `<tr><td colspan="4" class="px-6 py-10 text-center text-red-500">${detail}</td></tr>`;
+                setAllowedEmailsMessage(detail, true);
                 return;
             }
             if (!data || data.length === 0) {
