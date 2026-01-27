@@ -394,7 +394,8 @@
             const { data, error } = await supabase.functions.invoke('invite-user', {
                 body: { email },
                 headers: {
-                    Authorization: `Bearer ${token}`
+                    Authorization: `Bearer ${token}`,
+                    apikey: supabaseKey
                 }
             });
             if (error) {
