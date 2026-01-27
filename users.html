@@ -395,7 +395,8 @@
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
+                    'Authorization': `Bearer ${token}`,
+                    'apikey': supabaseKey
                 },
                 body: JSON.stringify({ email })
             });
@@ -403,7 +404,12 @@
             try {
                 payload = await response.json();
             } catch (err) {
-                payload = {};
+                try {
+                    const fallbackText = await response.text();
+                    payload = { error: fallbackText };
+                } catch {
+                    payload = {};
+                }
             }
             if (!response.ok) {
                 setAllowedEmailsMessage(payload.error || 'Unable to send invite.', true);
