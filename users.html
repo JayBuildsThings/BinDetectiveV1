@@ -401,18 +401,22 @@
                 body: JSON.stringify({ email })
             });
             let payload = {};
+            let rawText = '';
             try {
-                payload = await response.json();
-            } catch (err) {
+                rawText = await response.text();
+            } catch {
+                rawText = '';
+            }
+            if (rawText) {
                 try {
-                    const fallbackText = await response.text();
-                    payload = { error: fallbackText };
+                    payload = JSON.parse(rawText);
                 } catch {
-                    payload = {};
+                    payload = { error: rawText };
                 }
             }
             if (!response.ok) {
-                setAllowedEmailsMessage(payload.error || 'Unable to send invite.', true);
+                const detail = payload.error || response.statusText || 'Unable to send invite.';
+                setAllowedEmailsMessage(`Invite failed (${response.status}): ${detail}`, true);
                 return false;
             }
             return true;
