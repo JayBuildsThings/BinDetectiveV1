@@ -112,7 +112,20 @@ serve(async (req) => {
   });
 
   if (inviteResult.error) {
-    return new Response(JSON.stringify({ error: inviteResult.error.message }), {
+    const msg = inviteResult.error.message || "Invite failed";
+    if (msg.toLowerCase().includes("already been registered")) {
+      return new Response(
+        JSON.stringify({
+          ok: true,
+          warning: "User already exists. Access has been granted.",
+        }),
+        {
+          status: 200,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
+    }
+    return new Response(JSON.stringify({ error: msg }), {
       status: 400,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

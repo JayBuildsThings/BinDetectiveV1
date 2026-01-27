@@ -412,6 +412,10 @@
                 setAllowedEmailsMessage(`Invite failed: ${data.error}`, true);
                 return false;
             }
+            if (data?.warning) {
+                setAllowedEmailsMessage(data.warning);
+                return true;
+            }
             return true;
         }
 
