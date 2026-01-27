@@ -385,8 +385,17 @@
         }
 
         async function inviteAllowedEmail(email) {
+            const { data: sessionData } = await supabase.auth.getSession();
+            const token = sessionData?.session?.access_token;
+            if (!token) {
+                setAllowedEmailsMessage('Please sign in again.', true);
+                return false;
+            }
             const { data, error } = await supabase.functions.invoke('invite-user', {
-                body: { email }
+                body: { email },
+                headers: {
+                    Authorization: `Bearer ${token}`
+                }
             });
             if (error) {
                 const detail = error.message || 'Unable to send invite.';
