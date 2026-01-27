@@ -47,7 +47,7 @@
                 <span class="material-symbols-outlined text-4xl">lock</span>
             </div>
             <h2 class="text-2xl font-black mb-2">Secure Sign In</h2>
-            <p class="text-gray-500 text-sm mb-6">Use your email, password, and company PIN.</p>
+            <p class="text-gray-500 text-sm mb-6">Use your email and password to continue.</p>
             <div class="flex flex-col gap-3 text-left">
                 <input type="email" id="auth-email" placeholder="Email address" autocomplete="email"
                        class="w-full h-12 bg-gray-100 border-none rounded-xl px-4 focus:ring-2 focus:ring-primary">
@@ -55,8 +55,6 @@
                        class="w-full h-12 bg-gray-100 border-none rounded-xl px-4 focus:ring-2 focus:ring-primary">
                 <input type="text" id="auth-company" placeholder="Company name"
                        class="w-full h-12 bg-gray-100 border-none rounded-xl px-4 focus:ring-2 focus:ring-primary">
-                <input type="password" id="auth-pin" placeholder="4-digit PIN" inputmode="numeric" maxlength="4"
-                       class="w-full h-12 bg-gray-100 border-none rounded-xl px-4 tracking-widest focus:ring-2 focus:ring-primary">
             </div>
             <div class="grid grid-cols-2 gap-3 mt-5">
                 <button onclick="signIn()" class="w-full h-12 bg-primary text-white font-bold rounded-xl shadow-lg active:scale-95 transition-transform">
@@ -114,6 +112,9 @@
                 <button onclick="openAddBin()" class="bg-primary text-white px-4 py-2 rounded-lg font-bold text-sm transition-all hover:opacity-90 flex items-center gap-2">
                     <span class="material-symbols-outlined text-lg">add</span> Add Bin
                 </button>
+                <button onclick="openManageUsers()" class="bg-white text-gray-500 border border-gray-200 px-4 py-2 rounded-lg font-bold text-sm transition-all hover:text-primary hover:border-primary flex items-center gap-2">
+                    <span class="material-symbols-outlined text-lg">group</span> Users
+                </button>
                 
                 <div class="w-px h-8 bg-gray-200 mx-2"></div>
                 <a href="manage.html" class="flex items-center gap-2 text-sm font-bold text-gray-500 hover:text-primary transition-colors">
@@ -142,6 +143,28 @@
                     <button onclick="submitAddBin()" class="flex-1 h-11 rounded-xl bg-primary text-white font-bold">Add</button>
                 </div>
             </div>
+
+    <!-- MANAGE USERS MODAL -->
+    <div id="manage-users-modal" class="fixed inset-0 z-[110] bg-black/40 hidden items-center justify-center p-6">
+        <div class="w-full max-w-md bg-white rounded-2xl p-6 shadow-2xl">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-lg font-black text-dark">Manage Users</h2>
+                <button onclick="closeManageUsers()" class="text-gray-400 hover:text-gray-600">
+                    <span class="material-symbols-outlined">close</span>
+                </button>
+            </div>
+            <p class="text-xs text-gray-500 mb-4">Add or remove allowed email addresses for your company.</p>
+            <div class="flex gap-2 mb-4">
+                <input type="email" id="new-allowed-email" placeholder="user@company.com"
+                       class="flex-1 h-11 rounded-xl border-gray-200 focus:border-primary focus:ring-primary text-gray-700">
+                <button onclick="addAllowedEmail()" class="h-11 px-4 rounded-xl bg-primary text-white font-bold">Add</button>
+            </div>
+            <div id="allowed-emails-list" class="space-y-2 max-h-64 overflow-y-auto text-sm">
+                <p class="text-gray-400">Loading...</p>
+            </div>
+            <p id="allowed-emails-message" class="text-xs text-gray-500 mt-3 min-h-[16px]"></p>
+        </div>
+    </div>
         </div>
 
         <!-- VIEW: OVERVIEW -->
@@ -246,6 +269,7 @@
 
         let currentCompanyId = null;
         let currentUser = null;
+        let currentIsAdmin = false;
 
         function showLockScreen(show) {
             const lockScreen = document.getElementById('lock-screen');
@@ -276,26 +300,28 @@
         async function loadCompanyId() {
             const { data } = await supabase
                 .from('company_users')
-                .select('company_id')
+                .select('company_id,is_admin')
                 .eq('user_id', currentUser.id)
                 .maybeSingle();
             if (data?.company_id) {
                 currentCompanyId = data.company_id;
+                currentIsAdmin = !!data.is_admin;
                 return true;
             }
+            currentIsAdmin = false;
             return false;
         }
 
         async function ensureCompanyMembership() {
             const companyName = document.getElementById('auth-company').value.trim();
-            const pin = document.getElementById('auth-pin').value.trim();
-            if (!companyName || !pin) {
-                setAuthMessage('Enter your company name and PIN to continue.', true);
+            const email = (currentUser?.email || '').trim();
+            if (!companyName || !email) {
+                setAuthMessage('Enter your company name to continue.', true);
                 return false;
             }
-            const { error } = await supabase.rpc('claim_company', {
+            const { error } = await supabase.rpc('claim_company_by_email', {
                 p_company_name: companyName,
-                p_pin: pin
+                p_email: email
             });
             if (error && !String(error.message).toLowerCase().includes('duplicate key')) {
                 setAuthMessage(error.message, true);
@@ -332,7 +358,7 @@
                 setAuthMessage(error.message, true);
                 return;
             }
-            setAuthMessage('Password reset link sent. Check your email.');
+            setAuthMessage('If the email is registered, a password reset link has been sent.');
         };
 
         window.closeResetPassword = function() {
@@ -365,6 +391,100 @@
             await supabase.auth.signOut();
             showResetPassword(false);
             showLockScreen(true);
+        };
+
+        function setAllowedEmailsMessage(message, isError = false) {
+            const el = document.getElementById('allowed-emails-message');
+            if (!el) return;
+            el.innerText = message || '';
+            el.className = `text-xs mt-3 min-h-[16px] ${isError ? 'text-red-500' : 'text-gray-500'}`;
+        }
+
+        window.openManageUsers = async function() {
+            if (!currentCompanyId) {
+                alert("Company access missing. Please sign in again.");
+                return;
+            }
+            if (!currentIsAdmin) {
+                alert("Only admins can manage users.");
+                return;
+            }
+            document.getElementById('new-allowed-email').value = '';
+            setAllowedEmailsMessage('');
+            const modal = document.getElementById('manage-users-modal');
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+            await loadAllowedEmails();
+        };
+
+        window.closeManageUsers = function() {
+            const modal = document.getElementById('manage-users-modal');
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+        };
+
+        async function loadAllowedEmails() {
+            const container = document.getElementById('allowed-emails-list');
+            container.innerHTML = '<p class="text-gray-400">Loading...</p>';
+            const { data, error } = await supabase
+                .from('company_allowed_emails')
+                .select('id,email,is_admin')
+                .eq('company_id', currentCompanyId)
+                .order('email', { ascending: true });
+            if (error) {
+                container.innerHTML = '<p class="text-red-500">Unable to load users.</p>';
+                return;
+            }
+            if (!data || data.length === 0) {
+                container.innerHTML = '<p class="text-gray-400">No allowed users yet.</p>';
+                return;
+            }
+            container.innerHTML = data.map(row => {
+                const adminBadge = row.is_admin ? '<span class="text-xs font-bold text-primary">Admin</span>' : '';
+                return `
+                    <div class="flex items-center justify-between bg-gray-50 rounded-xl px-3 py-2">
+                        <div class="flex flex-col">
+                            <span class="font-medium text-gray-700">${row.email}</span>
+                            ${adminBadge}
+                        </div>
+                        <button onclick="removeAllowedEmail('${row.id}')" class="text-xs font-bold text-red-500 hover:text-red-600">Remove</button>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        window.addAllowedEmail = async function() {
+            setAllowedEmailsMessage('');
+            const email = document.getElementById('new-allowed-email').value.trim().toLowerCase();
+            if (!email) {
+                setAllowedEmailsMessage('Enter an email address to add.', true);
+                return;
+            }
+            const { error } = await supabase
+                .from('company_allowed_emails')
+                .insert([{ company_id: currentCompanyId, email }]);
+            if (error) {
+                setAllowedEmailsMessage(error.message, true);
+                return;
+            }
+            document.getElementById('new-allowed-email').value = '';
+            setAllowedEmailsMessage('User added.');
+            await loadAllowedEmails();
+        };
+
+        window.removeAllowedEmail = async function(rowId) {
+            if (!confirm('Remove this user?')) return;
+            const { error } = await supabase
+                .from('company_allowed_emails')
+                .delete()
+                .eq('id', rowId)
+                .eq('company_id', currentCompanyId);
+            if (error) {
+                setAllowedEmailsMessage(error.message, true);
+                return;
+            }
+            setAllowedEmailsMessage('User removed.');
+            await loadAllowedEmails();
         };
 
         window.signIn = async function() {
