@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Bin Detective Users</title>
+    <link href="https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;500;700&display=swap" rel="stylesheet"/>
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+    <script src="https://cdn.tailwindcss.com?plugins=forms"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.7/dist/umd/supabase.js"></script>
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#ec1313",
+                        "dark": "#221010",
+                        "status-green": "#10b981",
+                        "status-gray": "#9ca3af"
+                    },
+                    fontFamily: { "display": ["Lexend", "sans-serif"] }
+                }
+            }
+        }
+    </script>
+    <style>
+        .view { display: none; }
+        .view.active { display: block; animation: fadeIn 0.3s ease-in-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+    </style>
+</head>
+<body class="bg-gray-50 text-slate-900 font-display">
+
+    <!-- AUTH LOCK SCREEN OVERLAY -->
+    <div id="lock-screen" class="fixed inset-0 z-[100] bg-dark flex items-center justify-center p-6 hidden">
+        <div class="max-w-sm w-full bg-white rounded-3xl p-8 shadow-2xl text-center">
+            <div class="w-20 h-20 bg-red-50 text-primary rounded-full flex items-center justify-center mx-auto mb-6">
+                <span class="material-symbols-outlined text-4xl">lock</span>
+            </div>
+            <h2 class="text-2xl font-black mb-2">Secure Sign In</h2>
+            <p class="text-gray-500 text-sm mb-6">Use your email and password to continue.</p>
+            <div class="flex flex-col gap-3 text-left">
+                <input type="email" id="auth-email" placeholder="Email address" autocomplete="email"
+                       class="w-full h-12 bg-gray-100 border-none rounded-xl px-4 focus:ring-2 focus:ring-primary">
+                <input type="password" id="auth-password" placeholder="Password" autocomplete="current-password"
+                       class="w-full h-12 bg-gray-100 border-none rounded-xl px-4 focus:ring-2 focus:ring-primary">
+                <input type="text" id="auth-company" placeholder="Company name"
+                       class="w-full h-12 bg-gray-100 border-none rounded-xl px-4 focus:ring-2 focus:ring-primary">
+            </div>
+            <div class="grid grid-cols-2 gap-3 mt-5">
+                <button onclick="signIn()" class="w-full h-12 bg-primary text-white font-bold rounded-xl shadow-lg active:scale-95 transition-transform">
+                    SIGN IN
+                </button>
+                <button onclick="signUp()" class="w-full h-12 bg-gray-200 text-gray-700 font-bold rounded-xl shadow-lg active:scale-95 transition-transform">
+                    SIGN UP
+                </button>
+            </div>
+            <button type="button" onclick="requestPasswordReset()" class="mt-4 text-xs font-bold text-gray-400 hover:text-primary transition-colors">
+                Forgot password?
+            </button>
+            <p id="auth-message" class="text-xs text-gray-500 mt-4 min-h-[16px]"></p>
+        </div>
+    </div>
+
+    <!-- PASSWORD RESET MODAL -->
+    <div id="reset-password-modal" class="fixed inset-0 z-[110] bg-black/40 hidden items-center justify-center p-6">
+        <div class="w-full max-w-sm bg-white rounded-2xl p-6 shadow-2xl">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-lg font-black text-dark">Reset Password</h2>
+                <button onclick="closeResetPassword()" class="text-gray-400 hover:text-gray-600">
+                    <span class="material-symbols-outlined">close</span>
+                </button>
+            </div>
+            <p class="text-xs text-gray-500 mb-4">Enter a new password for your account.</p>
+            <div class="flex flex-col gap-3">
+                <input type="password" id="reset-password" placeholder="New password"
+                       class="w-full h-12 bg-gray-100 border-none rounded-xl px-4 focus:ring-2 focus:ring-primary">
+                <input type="password" id="reset-password-confirm" placeholder="Confirm new password"
+                       class="w-full h-12 bg-gray-100 border-none rounded-xl px-4 focus:ring-2 focus:ring-primary">
+            </div>
+            <p id="reset-message" class="text-xs text-gray-500 mt-3 min-h-[16px]"></p>
+            <div class="flex gap-3 mt-4">
+                <button onclick="closeResetPassword()" class="flex-1 h-11 rounded-xl bg-gray-100 text-gray-600 font-bold">Cancel</button>
+                <button onclick="submitPasswordReset()" class="flex-1 h-11 rounded-xl bg-primary text-white font-bold">Update</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MAIN CONTENT -->
+    <div class="max-w-7xl mx-auto min-h-screen p-6">
+
+        <!-- Header -->
+        <header class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8 border-b border-gray-200 pb-6">
+            <div>
+                <h1 class="text-3xl font-extrabold text-dark tracking-tight">BIN <span class="text-primary">DETECTIVE</span></h1>
+                <p class="text-gray-500 text-sm mt-1">User management</p>
+            </div>
+            <div class="flex items-center gap-4">
+                <a href="dashboard.html" class="bg-white text-gray-500 border border-gray-200 px-4 py-2 rounded-lg font-bold text-sm transition-all hover:text-primary hover:border-primary flex items-center gap-2">
+                    <span class="material-symbols-outlined text-lg">arrow_back</span> Dashboard
+                </a>
+                <div class="w-px h-8 bg-gray-200 mx-2"></div>
+                <button onclick="logout()" class="text-sm font-bold text-gray-400 hover:text-primary transition-colors">
+                    Logout
+                </button>
+            </div>
+        </header>
+
+        <!-- VIEW: USERS -->
+        <div id="view-users" class="view active">
+            <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 mb-6">
+                <h2 class="text-lg font-black text-dark mb-1">Allowed Users</h2>
+                <p id="admin-banner" class="text-sm text-gray-500">Only admins can manage this list.</p>
+            </div>
+
+            <div id="admin-actions" class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 mb-6 hidden">
+                <div class="flex flex-col md:flex-row gap-3">
+                    <input type="email" id="new-allowed-email" placeholder="user@company.com"
+                           class="flex-1 h-11 rounded-xl border-gray-200 focus:border-primary focus:ring-primary text-gray-700">
+                    <button onclick="addAllowedEmail()" class="h-11 px-4 rounded-xl bg-primary text-white font-bold">Add User</button>
+                </div>
+                <p id="allowed-emails-message" class="text-xs text-gray-500 mt-3 min-h-[16px]"></p>
+            </div>
+
+            <div class="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-sm">
+                        <thead class="bg-gray-50 text-gray-500 font-bold uppercase text-xs">
+                            <tr>
+                                <th class="px-6 py-4">Email</th>
+                                <th class="px-6 py-4">Role</th>
+                                <th class="px-6 py-4">Status</th>
+                                <th class="px-6 py-4 text-right">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="users-body" class="divide-y divide-gray-100">
+                            <tr><td colspan="4" class="px-6 py-10 text-center text-gray-400">Loading users...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div id="view-no-access" class="view">
+            <div class="bg-white p-8 rounded-2xl shadow-sm border border-gray-100 text-center">
+                <h2 class="text-xl font-black text-dark mb-2">Admin Access Required</h2>
+                <p class="text-gray-500">You need admin permissions to manage users for this company.</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const supabaseUrl = 'https://sjpzozgslahdzwqwjtbr.supabase.co';
+        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNqcHpvemdzbGFoZHp3cXdqdGJyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njk0MzYyNjcsImV4cCI6MjA4NTAxMjI2N30.1x59I-8n8NAcxnKR4FC39UHkVVp2K-9q1ZlxsUJ57xU';
+        const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
+
+        let currentCompanyId = null;
+        let currentUser = null;
+        let currentIsAdmin = false;
+
+        function showLockScreen(show) {
+            const lockScreen = document.getElementById('lock-screen');
+            lockScreen.classList.toggle('hidden', !show);
+        }
+
+        function setAuthMessage(message, isError = false) {
+            const el = document.getElementById('auth-message');
+            if (!el) return;
+            el.innerText = message || '';
+            el.className = `text-xs mt-4 min-h-[16px] ${isError ? 'text-red-500' : 'text-gray-500'}`;
+        }
+
+        function showResetPassword(show) {
+            const modal = document.getElementById('reset-password-modal');
+            if (!modal) return;
+            modal.classList.toggle('hidden', !show);
+            modal.classList.toggle('flex', show);
+        }
+
+        function setResetMessage(message, isError = false) {
+            const el = document.getElementById('reset-message');
+            if (!el) return;
+            el.innerText = message || '';
+            el.className = `text-xs mt-3 min-h-[16px] ${isError ? 'text-red-500' : 'text-gray-500'}`;
+        }
+
+        function setAllowedEmailsMessage(message, isError = false) {
+            const el = document.getElementById('allowed-emails-message');
+            if (!el) return;
+            el.innerText = message || '';
+            el.className = `text-xs mt-3 min-h-[16px] ${isError ? 'text-red-500' : 'text-gray-500'}`;
+        }
+
+        function showView(id) {
+            document.querySelectorAll('.view').forEach(el => el.classList.remove('active'));
+            const view = document.getElementById(id);
+            if (view) view.classList.add('active');
+        }
+
+        async function loadCompanyId() {
+            const { data } = await supabase
+                .from('company_users')
+                .select('company_id,is_admin')
+                .eq('user_id', currentUser.id)
+                .maybeSingle();
+            if (data?.company_id) {
+                currentCompanyId = data.company_id;
+                currentIsAdmin = !!data.is_admin;
+                return true;
+            }
+            currentIsAdmin = false;
+            return false;
+        }
+
+        async function ensureCompanyMembership() {
+            const companyName = document.getElementById('auth-company').value.trim();
+            const email = (currentUser?.email || '').trim();
+            if (!companyName || !email) {
+                setAuthMessage('Enter your company name to continue.', true);
+                return false;
+            }
+            const { error } = await supabase.rpc('claim_company_by_email', {
+                p_company_name: companyName,
+                p_email: email
+            });
+            if (error && !String(error.message).toLowerCase().includes('duplicate key')) {
+                setAuthMessage(error.message, true);
+                return false;
+            }
+            return loadCompanyId();
+        }
+
+        async function postAuthInit() {
+            if (!currentUser) return;
+            const hasCompany = await loadCompanyId();
+            if (!hasCompany) {
+                const claimed = await ensureCompanyMembership();
+                if (!claimed) {
+                    showLockScreen(true);
+                    return;
+                }
+            }
+            showLockScreen(false);
+            if (!currentIsAdmin) {
+                showView('view-no-access');
+                return;
+            }
+            document.getElementById('admin-actions').classList.remove('hidden');
+            await loadAllowedEmails();
+        }
+
+        window.signIn = async function() {
+            setAuthMessage('');
+            const email = document.getElementById('auth-email').value.trim();
+            const password = document.getElementById('auth-password').value.trim();
+            if (!email || !password) {
+                setAuthMessage('Email and password are required.', true);
+                return;
+            }
+            const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+            if (error) {
+                setAuthMessage(error.message, true);
+                return;
+            }
+            currentUser = data.user;
+            await postAuthInit();
+        };
+
+        window.signUp = async function() {
+            setAuthMessage('');
+            const email = document.getElementById('auth-email').value.trim();
+            const password = document.getElementById('auth-password').value.trim();
+            if (!email || !password) {
+                setAuthMessage('Email and password are required.', true);
+                return;
+            }
+            const { data, error } = await supabase.auth.signUp({
+                email,
+                password,
+                options: {
+                    emailRedirectTo: "https://jaybuildsthings.github.io/BinDetectiveV1/users.html"
+                }
+            });
+            if (error) {
+                setAuthMessage(error.message, true);
+                return;
+            }
+            if (!data.session) {
+                setAuthMessage('Check your email to confirm your account.');
+                return;
+            }
+            currentUser = data.user;
+            await postAuthInit();
+        };
+
+        window.logout = async function() {
+            if (confirm("Logout and return to sign in?")) {
+                await supabase.auth.signOut();
+                location.reload();
+            }
+        };
+
+        window.requestPasswordReset = async function() {
+            setAuthMessage('');
+            const email = document.getElementById('auth-email').value.trim();
+            if (!email) {
+                setAuthMessage('Enter your email to reset your password.', true);
+                return;
+            }
+            const { error } = await supabase.auth.resetPasswordForEmail(email, {
+                redirectTo: `${window.location.origin}${window.location.pathname}`
+            });
+            if (error) {
+                setAuthMessage(error.message, true);
+                return;
+            }
+            setAuthMessage('If the email is registered, a password reset link has been sent.');
+        };
+
+        window.closeResetPassword = function() {
+            showResetPassword(false);
+            setResetMessage('');
+            const pwd = document.getElementById('reset-password');
+            const confirm = document.getElementById('reset-password-confirm');
+            if (pwd) pwd.value = '';
+            if (confirm) confirm.value = '';
+        };
+
+        window.submitPasswordReset = async function() {
+            setResetMessage('');
+            const pwd = document.getElementById('reset-password').value.trim();
+            const confirm = document.getElementById('reset-password-confirm').value.trim();
+            if (!pwd || pwd.length < 6) {
+                setResetMessage('Password must be at least 6 characters.', true);
+                return;
+            }
+            if (pwd !== confirm) {
+                setResetMessage('Passwords do not match.', true);
+                return;
+            }
+            const { error } = await supabase.auth.updateUser({ password: pwd });
+            if (error) {
+                setResetMessage(error.message, true);
+                return;
+            }
+            setResetMessage('Password updated. Please sign in again.');
+            await supabase.auth.signOut();
+            showResetPassword(false);
+            showLockScreen(true);
+        };
+
+        async function loadAllowedEmails() {
+            const tbody = document.getElementById('users-body');
+            tbody.innerHTML = '<tr><td colspan="4" class="px-6 py-10 text-center text-gray-400">Loading users...</td></tr>';
+            const { data, error } = await supabase
+                .from('company_allowed_emails')
+                .select('id,email,is_admin')
+                .eq('company_id', currentCompanyId)
+                .order('email', { ascending: true });
+            if (error) {
+                tbody.innerHTML = '<tr><td colspan="4" class="px-6 py-10 text-center text-red-500">Unable to load users.</td></tr>';
+                return;
+            }
+            if (!data || data.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="4" class="px-6 py-10 text-center text-gray-400">No users yet.</td></tr>';
+                return;
+            }
+            tbody.innerHTML = data.map(row => {
+                const role = row.is_admin ? 'Admin' : 'User';
+                const statusClass = row.is_admin ? 'bg-primary/10 text-primary border-primary/20' : 'bg-gray-100 text-gray-600 border-gray-200';
+                return `
+                    <tr class="hover:bg-gray-50 transition-colors">
+                        <td class="px-6 py-4 font-medium text-gray-800">${row.email}</td>
+                        <td class="px-6 py-4">
+                            <span class="px-2.5 py-1 rounded-md text-xs font-bold uppercase tracking-wide border ${statusClass}">${role}</span>
+                        </td>
+                        <td class="px-6 py-4 text-gray-500">Allowed</td>
+                        <td class="px-6 py-4 text-right">
+                            <button onclick="removeAllowedEmail('${row.id}', ${row.is_admin})" class="text-xs font-bold text-red-500 hover:text-red-600">Remove</button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        window.addAllowedEmail = async function() {
+            setAllowedEmailsMessage('');
+            const email = document.getElementById('new-allowed-email').value.trim().toLowerCase();
+            if (!email) {
+                setAllowedEmailsMessage('Enter an email address to add.', true);
+                return;
+            }
+            const { error } = await supabase
+                .from('company_allowed_emails')
+                .insert([{ company_id: currentCompanyId, email }]);
+            if (error) {
+                setAllowedEmailsMessage(error.message, true);
+                return;
+            }
+            document.getElementById('new-allowed-email').value = '';
+            setAllowedEmailsMessage('User added.');
+            await loadAllowedEmails();
+        };
+
+        window.removeAllowedEmail = async function(rowId, isAdmin) {
+            if (isAdmin) {
+                alert('Admin users cannot be removed here.');
+                return;
+            }
+            if (!confirm('Remove this user?')) return;
+            const { error } = await supabase
+                .from('company_allowed_emails')
+                .delete()
+                .eq('id', rowId)
+                .eq('company_id', currentCompanyId);
+            if (error) {
+                setAllowedEmailsMessage(error.message, true);
+                return;
+            }
+            setAllowedEmailsMessage('User removed.');
+            await loadAllowedEmails();
+        };
+
+        async function init() {
+            const { data } = await supabase.auth.getSession();
+            if (data.session && window.location.hash.includes('type=recovery')) {
+                showLockScreen(true);
+                showResetPassword(true);
+                return;
+            }
+            if (!data.session) {
+                showLockScreen(true);
+            } else {
+                currentUser = data.session.user;
+                await postAuthInit();
+            }
+            supabase.auth.onAuthStateChange(async (event, session) => {
+                if (event === 'PASSWORD_RECOVERY') {
+                    showLockScreen(true);
+                    showResetPassword(true);
+                    return;
+                }
+                if (!session) {
+                    currentUser = null;
+                    currentCompanyId = null;
+                    currentIsAdmin = false;
+                    showLockScreen(true);
+                    return;
+                }
+                currentUser = session.user;
+                await postAuthInit();
+            });
+        }
+
+        init();
+    </script>
+</body>
+</html>
