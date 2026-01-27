@@ -123,12 +123,12 @@
     <div id="reset-password-modal" class="fixed inset-0 z-[110] bg-black/40 hidden items-center justify-center p-6">
         <div class="w-full max-w-sm bg-white rounded-2xl p-6 shadow-2xl">
             <div class="flex items-center justify-between mb-4">
-                <h2 class="text-lg font-black text-dark">Reset Password</h2>
+                <h2 class="text-lg font-black text-dark">Set Password</h2>
                 <button onclick="closeResetPassword()" class="text-gray-400 hover:text-gray-600">
                     <span class="material-symbols-outlined">close</span>
                 </button>
             </div>
-            <p class="text-xs text-gray-500 mb-4">Enter a new password for your account.</p>
+            <p class="text-xs text-gray-500 mb-4">Create a password for your account.</p>
             <div class="flex flex-col gap-3">
                 <input type="password" id="reset-password" placeholder="New password"
                        class="w-full h-12 bg-gray-100 border-none rounded-xl px-4 focus:ring-2 focus:ring-primary">
@@ -382,6 +382,11 @@
             el.className = `text-xs mt-3 min-h-[16px] ${isError ? 'text-red-500' : 'text-gray-500'}`;
         }
 
+        function isPasswordSetupFlow() {
+            const hash = window.location.hash || '';
+            return hash.includes('type=recovery') || hash.includes('type=invite');
+        }
+
         async function loadCompanyId() {
             const { data } = await supabase
                 .from('company_users')
@@ -435,7 +440,7 @@
                 return;
             }
             const { error } = await supabase.auth.resetPasswordForEmail(email, {
-                redirectTo: `${window.location.origin}${window.location.pathname}`
+                redirectTo: `${window.location.origin}/BinDetectiveV1/set-password.html`
             });
             if (error) {
                 setAuthMessage(error.message, true);
@@ -529,7 +534,7 @@
 
         async function initAuth() {
             const { data } = await supabase.auth.getSession();
-            if (data.session && window.location.hash.includes('type=recovery')) {
+            if (data.session && isPasswordSetupFlow()) {
                 showLockScreen(true);
                 showResetPassword(true);
                 return;
@@ -541,7 +546,7 @@
                 await postAuthInit();
             }
             supabase.auth.onAuthStateChange(async (event, session) => {
-                if (event === 'PASSWORD_RECOVERY') {
+                if (event === 'PASSWORD_RECOVERY' || isPasswordSetupFlow()) {
                     showLockScreen(true);
                     showResetPassword(true);
                     return;

@@ -101,8 +101,9 @@ serve(async (req) => {
   }
 
   const inviteResult = await supabaseAdmin.auth.admin.inviteUserByEmail(email, {
-    redirectTo: "https://jaybuildsthings.github.io/BinDetectiveV1/manage.html",
+    redirectTo: "https://jaybuildsthings.github.io/BinDetectiveV1/set-password.html",
     data: {
+      login_url: "https://jaybuildsthings.github.io/BinDetectiveV1/login.html",
       manage_url: "https://jaybuildsthings.github.io/BinDetectiveV1/manage.html",
       dashboard_url:
         "https://jaybuildsthings.github.io/BinDetectiveV1/dashboard.html",
