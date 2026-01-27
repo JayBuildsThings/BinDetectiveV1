@@ -66,7 +66,34 @@
                     SIGN UP
                 </button>
             </div>
+            <button type="button" onclick="requestPasswordReset()" class="mt-4 text-xs font-bold text-gray-400 hover:text-primary transition-colors">
+                Forgot password?
+            </button>
             <p id="auth-message" class="text-xs text-gray-500 mt-4 min-h-[16px]"></p>
+        </div>
+    </div>
+
+    <!-- PASSWORD RESET MODAL -->
+    <div id="reset-password-modal" class="fixed inset-0 z-[110] bg-black/40 hidden items-center justify-center p-6">
+        <div class="w-full max-w-sm bg-white rounded-2xl p-6 shadow-2xl">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-lg font-black text-dark">Reset Password</h2>
+                <button onclick="closeResetPassword()" class="text-gray-400 hover:text-gray-600">
+                    <span class="material-symbols-outlined">close</span>
+                </button>
+            </div>
+            <p class="text-xs text-gray-500 mb-4">Enter a new password for your account.</p>
+            <div class="flex flex-col gap-3">
+                <input type="password" id="reset-password" placeholder="New password"
+                       class="w-full h-12 bg-gray-100 border-none rounded-xl px-4 focus:ring-2 focus:ring-primary">
+                <input type="password" id="reset-password-confirm" placeholder="Confirm new password"
+                       class="w-full h-12 bg-gray-100 border-none rounded-xl px-4 focus:ring-2 focus:ring-primary">
+            </div>
+            <p id="reset-message" class="text-xs text-gray-500 mt-3 min-h-[16px]"></p>
+            <div class="flex gap-3 mt-4">
+                <button onclick="closeResetPassword()" class="flex-1 h-11 rounded-xl bg-gray-100 text-gray-600 font-bold">Cancel</button>
+                <button onclick="submitPasswordReset()" class="flex-1 h-11 rounded-xl bg-primary text-white font-bold">Update</button>
+            </div>
         </div>
     </div>
 
@@ -232,6 +259,20 @@
             el.className = `text-xs mt-4 min-h-[16px] ${isError ? 'text-red-500' : 'text-gray-500'}`;
         }
 
+        function showResetPassword(show) {
+            const modal = document.getElementById('reset-password-modal');
+            if (!modal) return;
+            modal.classList.toggle('hidden', !show);
+            modal.classList.toggle('flex', show);
+        }
+
+        function setResetMessage(message, isError = false) {
+            const el = document.getElementById('reset-message');
+            if (!el) return;
+            el.innerText = message || '';
+            el.className = `text-xs mt-3 min-h-[16px] ${isError ? 'text-red-500' : 'text-gray-500'}`;
+        }
+
         async function loadCompanyId() {
             const { data } = await supabase
                 .from('company_users')
@@ -276,6 +317,55 @@
             showLockScreen(false);
             fetchDashboardData();
         }
+
+        window.requestPasswordReset = async function() {
+            setAuthMessage('');
+            const email = document.getElementById('auth-email').value.trim();
+            if (!email) {
+                setAuthMessage('Enter your email to reset your password.', true);
+                return;
+            }
+            const { error } = await supabase.auth.resetPasswordForEmail(email, {
+                redirectTo: `${window.location.origin}${window.location.pathname}`
+            });
+            if (error) {
+                setAuthMessage(error.message, true);
+                return;
+            }
+            setAuthMessage('Password reset link sent. Check your email.');
+        };
+
+        window.closeResetPassword = function() {
+            showResetPassword(false);
+            setResetMessage('');
+            const pwd = document.getElementById('reset-password');
+            const confirm = document.getElementById('reset-password-confirm');
+            if (pwd) pwd.value = '';
+            if (confirm) confirm.value = '';
+        };
+
+        window.submitPasswordReset = async function() {
+            setResetMessage('');
+            const pwd = document.getElementById('reset-password').value.trim();
+            const confirm = document.getElementById('reset-password-confirm').value.trim();
+            if (!pwd || pwd.length < 6) {
+                setResetMessage('Password must be at least 6 characters.', true);
+                return;
+            }
+            if (pwd !== confirm) {
+                setResetMessage('Passwords do not match.', true);
+                return;
+            }
+            const { error } = await supabase.auth.updateUser({ password: pwd });
+            if (error) {
+                setResetMessage(error.message, true);
+                return;
+            }
+            setResetMessage('Password updated. Please sign in again.');
+            await supabase.auth.signOut();
+            showResetPassword(false);
+            showLockScreen(true);
+        };
 
         window.signIn = async function() {
             setAuthMessage('');
@@ -372,13 +462,23 @@
         // --- INIT ---
         async function init() {
             const { data } = await supabase.auth.getSession();
+            if (data.session && window.location.hash.includes('type=recovery')) {
+                showLockScreen(true);
+                showResetPassword(true);
+                return;
+            }
             if (!data.session) {
                 showLockScreen(true);
             } else {
                 currentUser = data.session.user;
                 await postAuthInit();
             }
-            supabase.auth.onAuthStateChange(async (_event, session) => {
+            supabase.auth.onAuthStateChange(async (event, session) => {
+                if (event === 'PASSWORD_RECOVERY') {
+                    showLockScreen(true);
+                    showResetPassword(true);
+                    return;
+                }
                 if (!session) {
                     currentUser = null;
                     currentCompanyId = null;
