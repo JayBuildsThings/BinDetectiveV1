@@ -286,7 +286,12 @@
         };
 
         window.confirmLogout = async function() {
-            await supabase.auth.signOut();
+            try {
+                await supabase.auth.signOut();
+            } catch (e) {
+                console.warn('Logout failed', e);
+            }
+            showLogoutModal(false);
             redirectToLogin();
         };
 
