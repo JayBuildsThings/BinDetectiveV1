@@ -430,7 +430,8 @@
             showDashboardAccessModal(false);
         };
 
-        window.openDashboard = function() {
+        window.openDashboard = async function() {
+            await loadAccessTier();
             if (currentIsAdmin && currentDashboardAccess) {
                 window.location.href = "dashboard.html";
                 return;
