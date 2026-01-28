@@ -125,10 +125,6 @@
                 <button onclick="openAddBin()" class="bg-primary text-white px-4 py-2 rounded-lg font-bold text-sm transition-all hover:opacity-90 flex items-center gap-2">
                     <span class="material-symbols-outlined text-lg">add</span> Add Bin
                 </button>
-                <a id="nav-users" href="users.html" class="bg-white text-gray-500 border border-gray-200 px-4 py-2 rounded-lg font-bold text-sm transition-all hover:text-primary hover:border-primary flex items-center gap-2">
-                    <span class="material-symbols-outlined text-lg">group</span> Users
-                </a>
-                
                 <div class="w-px h-8 bg-gray-200 mx-2"></div>
                 <a href="manage.html" target="_blank" rel="noopener noreferrer" class="flex items-center gap-2 text-sm font-bold text-gray-500 hover:text-primary transition-colors">
                     <span>Open App</span>
@@ -161,6 +157,21 @@
 
         <!-- VIEW: OVERVIEW -->
         <div id="view-overview" class="view active">
+            <!-- Sub Tabs -->
+            <div class="flex flex-wrap gap-2 mb-6">
+                <button id="tab-bins" onclick="switchDashboardTab('bins')" class="nav-btn bg-dark text-white px-4 py-2 rounded-lg font-bold text-sm transition-all">
+                    Bins
+                </button>
+                <button id="tab-users" onclick="switchDashboardTab('users')" class="nav-btn bg-white text-gray-500 border border-gray-200 px-4 py-2 rounded-lg font-bold text-sm transition-all hover:text-primary hover:border-primary">
+                    Users
+                </button>
+                <button id="tab-contacts" onclick="switchDashboardTab('contacts')" class="nav-btn bg-white text-gray-500 border border-gray-200 px-4 py-2 rounded-lg font-bold text-sm transition-all hover:text-primary hover:border-primary">
+                    Contacts
+                </button>
+            </div>
+
+            <!-- TAB: BINS -->
+            <div id="dashboard-tab-bins" class="dashboard-tab">
             <!-- Stats Cards -->
             <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
                 <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex items-center gap-4">
@@ -227,6 +238,107 @@
                     </table>
                 </div>
             </div>
+            </div>
+
+            <!-- TAB: USERS -->
+            <div id="dashboard-tab-users" class="dashboard-tab hidden">
+                <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 mb-6">
+                    <h2 class="text-lg font-black text-dark mb-1">Users</h2>
+                    <p id="users-admin-banner" class="text-sm text-gray-500">Only admins can manage users.</p>
+                </div>
+
+                <div id="users-summary" class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6 hidden">
+                    <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100">
+                        <p class="text-xs font-bold text-gray-400 uppercase">Total Users</p>
+                        <p id="users-total" class="text-2xl font-black text-dark">--</p>
+                    </div>
+                    <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100">
+                        <p class="text-xs font-bold text-gray-400 uppercase">Admins</p>
+                        <p id="users-admins" class="text-2xl font-black text-dark">--</p>
+                    </div>
+                    <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100">
+                        <p class="text-xs font-bold text-gray-400 uppercase">Standard</p>
+                        <p id="users-standard" class="text-2xl font-black text-dark">--</p>
+                    </div>
+                </div>
+
+                <div id="users-no-access" class="bg-white p-8 rounded-2xl shadow-sm border border-gray-100 text-center hidden">
+                    <h3 class="text-xl font-black text-dark mb-2">Admin Access Required</h3>
+                    <p class="text-gray-500">You need admin permissions to view the user list.</p>
+                </div>
+
+                <div id="users-table-wrap" class="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden hidden">
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-sm">
+                            <thead class="bg-gray-50 text-gray-500 font-bold uppercase text-xs">
+                                <tr>
+                                    <th class="px-6 py-4">Email</th>
+                                    <th class="px-6 py-4">Role</th>
+                                    <th class="px-6 py-4">Status</th>
+                                </tr>
+                            </thead>
+                            <tbody id="users-body" class="divide-y divide-gray-100">
+                                <tr><td colspan="3" class="px-6 py-10 text-center text-gray-400">Loading users...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB: CONTACTS -->
+            <div id="dashboard-tab-contacts" class="dashboard-tab hidden">
+                <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 mb-6">
+                    <h2 class="text-lg font-black text-dark mb-1">Contacts</h2>
+                    <p class="text-sm text-gray-500">Overview of client contact details.</p>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                    <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100">
+                        <p class="text-xs font-bold text-gray-400 uppercase">Total Contacts</p>
+                        <p id="contacts-total" class="text-2xl font-black text-dark">--</p>
+                    </div>
+                    <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100">
+                        <p class="text-xs font-bold text-gray-400 uppercase">With Phone</p>
+                        <p id="contacts-phone" class="text-2xl font-black text-dark">--</p>
+                    </div>
+                    <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100">
+                        <p class="text-xs font-bold text-gray-400 uppercase">With Address</p>
+                        <p id="contacts-address" class="text-2xl font-black text-dark">--</p>
+                    </div>
+                </div>
+
+                <div class="bg-white p-4 rounded-t-2xl border border-gray-200 border-b-0 flex flex-col md:flex-row gap-4 items-center justify-between">
+                    <div class="relative w-full md:w-96">
+                        <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">search</span>
+                        <input type="text" id="contacts-search" placeholder="Search name, phone, or address..."
+                               class="w-full pl-10 pr-4 py-2 bg-gray-50 border-gray-200 rounded-lg focus:ring-primary focus:border-primary text-sm"
+                               oninput="filterContacts()">
+                    </div>
+                    <div class="flex gap-2">
+                        <button onclick="loadContacts()" class="p-2 text-gray-400 hover:text-primary transition-colors" title="Refresh">
+                            <span class="material-symbols-outlined">refresh</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-b-2xl shadow-sm border border-gray-200 overflow-hidden">
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-sm">
+                            <thead class="bg-gray-50 text-gray-500 font-bold uppercase text-xs">
+                                <tr>
+                                    <th class="px-6 py-4">Name</th>
+                                    <th class="px-6 py-4">Phone</th>
+                                    <th class="px-6 py-4">Address</th>
+                                    <th class="px-6 py-4">Last Updated</th>
+                                </tr>
+                            </thead>
+                            <tbody id="contacts-body" class="divide-y divide-gray-100">
+                                <tr><td colspan="4" class="px-6 py-10 text-center text-gray-400">Loading contacts...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
         </div>
 
         <!-- VIEW: MAP -->
@@ -255,8 +367,13 @@
         const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
 
         let allRows = [];
+        let allContacts = [];
+        let allUsers = [];
         let map;
         let markers = [];
+        let activeDashboardTab = 'bins';
+        let contactsLoaded = false;
+        let usersLoaded = false;
 
         let currentCompanyId = null;
         let currentUser = null;
@@ -347,6 +464,34 @@
                 </tr>`;
         }
 
+        function setUsersError(message) {
+            const tbody = document.getElementById('users-body');
+            if (!tbody) return;
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="3" class="px-6 py-10 text-center text-red-500">
+                        ${message}
+                        <div class="mt-3">
+                            <button onclick="loadUsers()" class="text-xs font-bold text-primary underline">Retry</button>
+                        </div>
+                    </td>
+                </tr>`;
+        }
+
+        function setContactsError(message) {
+            const tbody = document.getElementById('contacts-body');
+            if (!tbody) return;
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="4" class="px-6 py-10 text-center text-red-500">
+                        ${message}
+                        <div class="mt-3">
+                            <button onclick="loadContacts()" class="text-xs font-bold text-primary underline">Retry</button>
+                        </div>
+                    </td>
+                </tr>`;
+        }
+
         async function loadCompanyId() {
             const { data } = await supabase
                 .from('company_users')
@@ -393,6 +538,7 @@
                 }
             }
             showLockScreen(false);
+            switchDashboardTab(activeDashboardTab);
             fetchDashboardData();
         }
 
@@ -446,9 +592,11 @@
         };
 
         function updateUsersNavVisibility() {
-            const nav = document.getElementById('nav-users');
-            if (!nav) return;
-            nav.classList.toggle('hidden', !currentIsAdmin);
+            const banner = document.getElementById('users-admin-banner');
+            if (!banner) return;
+            banner.innerText = currentIsAdmin
+                ? 'Manage and review user access for this company.'
+                : 'Only admins can manage users.';
         }
 
         window.signIn = async function() {
@@ -595,6 +743,42 @@
                 setTimeout(() => {
                     if (!map) initMap();
                 }, 100);
+            }
+        };
+
+        window.switchDashboardTab = function(tabName) {
+            activeDashboardTab = tabName;
+            document.querySelectorAll('.dashboard-tab').forEach(el => el.classList.add('hidden'));
+            const target = document.getElementById(`dashboard-tab-${tabName}`);
+            if (target) target.classList.remove('hidden');
+
+            const btnBins = document.getElementById('tab-bins');
+            const btnUsers = document.getElementById('tab-users');
+            const btnContacts = document.getElementById('tab-contacts');
+            const activeClass = "bg-dark text-white border-transparent";
+            const inactiveClass = "bg-white text-gray-500 border-gray-200 hover:text-primary hover:border-primary";
+            if (btnBins) btnBins.className = `nav-btn px-4 py-2 rounded-lg font-bold text-sm transition-all ${tabName === 'bins' ? activeClass : inactiveClass}`;
+            if (btnUsers) btnUsers.className = `nav-btn px-4 py-2 rounded-lg font-bold text-sm transition-all ${tabName === 'users' ? activeClass : inactiveClass}`;
+            if (btnContacts) btnContacts.className = `nav-btn px-4 py-2 rounded-lg font-bold text-sm transition-all ${tabName === 'contacts' ? activeClass : inactiveClass}`;
+
+            if (tabName === 'users') {
+                const noAccess = document.getElementById('users-no-access');
+                const summary = document.getElementById('users-summary');
+                const tableWrap = document.getElementById('users-table-wrap');
+                if (!currentIsAdmin) {
+                    if (noAccess) noAccess.classList.remove('hidden');
+                    if (summary) summary.classList.add('hidden');
+                    if (tableWrap) tableWrap.classList.add('hidden');
+                    return;
+                }
+                if (noAccess) noAccess.classList.add('hidden');
+                if (summary) summary.classList.remove('hidden');
+                if (tableWrap) tableWrap.classList.remove('hidden');
+                if (!usersLoaded) loadUsers();
+            }
+
+            if (tabName === 'contacts' && !contactsLoaded) {
+                loadContacts();
             }
         };
 
@@ -749,6 +933,129 @@
             const query = document.getElementById('table-search').value.toLowerCase();
             const filtered = allRows.filter(r => r.id.toLowerCase().includes(query) || r.client.toLowerCase().includes(query) || r.address.toLowerCase().includes(query));
             renderTable(filtered);
+        };
+
+        async function loadUsers() {
+            const tbody = document.getElementById('users-body');
+            if (!tbody || !currentCompanyId) return;
+            tbody.innerHTML = '<tr><td colspan="3" class="px-6 py-10 text-center text-gray-400">Loading users...</td></tr>';
+            const res = await runWithRetry('allowed emails', () => supabase
+                .from('company_allowed_emails')
+                .select('id,email,is_admin')
+                .eq('company_id', currentCompanyId)
+                .order('email', { ascending: true }));
+            if (res.error) {
+                setUsersError(res.error.message || 'Unable to load users.');
+                return;
+            }
+            const data = res.data || [];
+            allUsers = data;
+            usersLoaded = true;
+            updateUsersSummary(data);
+            renderUsersTable(data);
+        }
+
+        function updateUsersSummary(users) {
+            const total = users.length;
+            const admins = users.filter(u => u.is_admin).length;
+            const standard = total - admins;
+            const elTotal = document.getElementById('users-total');
+            const elAdmins = document.getElementById('users-admins');
+            const elStandard = document.getElementById('users-standard');
+            if (elTotal) elTotal.innerText = total;
+            if (elAdmins) elAdmins.innerText = admins;
+            if (elStandard) elStandard.innerText = standard;
+        }
+
+        function renderUsersTable(users) {
+            const tbody = document.getElementById('users-body');
+            if (!tbody) return;
+            if (!users || users.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="3" class="px-6 py-10 text-center text-gray-400">No users yet.</td></tr>';
+                return;
+            }
+            tbody.innerHTML = users.map(row => {
+                const role = row.is_admin ? 'Admin' : 'User';
+                const statusClass = row.is_admin ? 'bg-primary/10 text-primary border-primary/20' : 'bg-gray-100 text-gray-600 border-gray-200';
+                return `
+                    <tr class="hover:bg-gray-50 transition-colors">
+                        <td class="px-6 py-4 font-medium text-gray-800">${row.email}</td>
+                        <td class="px-6 py-4">
+                            <span class="px-2.5 py-1 rounded-md text-xs font-bold uppercase tracking-wide border ${statusClass}">${role}</span>
+                        </td>
+                        <td class="px-6 py-4 text-gray-500">Allowed</td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        async function loadContacts() {
+            const tbody = document.getElementById('contacts-body');
+            if (!tbody) return;
+            tbody.innerHTML = '<tr><td colspan="4" class="px-6 py-10 text-center text-gray-400">Loading contacts...</td></tr>';
+            const res = await runWithRetry('contacts', () => supabase
+                .from('activity_logs')
+                .select('client_name,address,phone_number,created_at')
+                .order('created_at', { ascending: false })
+                .limit(1000));
+            if (res.error) {
+                setContactsError(res.error.message || 'Unable to load contacts.');
+                return;
+            }
+            const data = res.data || [];
+            const uniqueClients = new Map();
+            data.forEach(log => {
+                if (!log.client_name) return;
+                if (!uniqueClients.has(log.client_name)) {
+                    uniqueClients.set(log.client_name, log);
+                }
+            });
+            allContacts = Array.from(uniqueClients.values()).sort((a, b) => a.client_name.localeCompare(b.client_name));
+            contactsLoaded = true;
+            updateContactsSummary(allContacts);
+            renderContactsTable(allContacts);
+        }
+
+        function updateContactsSummary(contacts) {
+            const total = contacts.length;
+            const withPhone = contacts.filter(c => c.phone_number).length;
+            const withAddress = contacts.filter(c => c.address).length;
+            const elTotal = document.getElementById('contacts-total');
+            const elPhone = document.getElementById('contacts-phone');
+            const elAddress = document.getElementById('contacts-address');
+            if (elTotal) elTotal.innerText = total;
+            if (elPhone) elPhone.innerText = withPhone;
+            if (elAddress) elAddress.innerText = withAddress;
+        }
+
+        function renderContactsTable(contacts) {
+            const tbody = document.getElementById('contacts-body');
+            if (!tbody) return;
+            if (!contacts || contacts.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="4" class="px-6 py-10 text-center text-gray-400">No contacts yet.</td></tr>';
+                return;
+            }
+            tbody.innerHTML = contacts.map(c => {
+                const date = c.created_at ? new Date(c.created_at).toLocaleDateString() : '-';
+                return `
+                    <tr class="hover:bg-gray-50 transition-colors">
+                        <td class="px-6 py-4 font-medium text-gray-800">${c.client_name || '-'}</td>
+                        <td class="px-6 py-4 text-gray-600">${c.phone_number || '-'}</td>
+                        <td class="px-6 py-4 text-gray-600 max-w-xs truncate" title="${c.address || ''}">${c.address || '-'}</td>
+                        <td class="px-6 py-4 text-gray-500 text-xs font-mono">${date}</td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        window.filterContacts = function() {
+            const query = document.getElementById('contacts-search').value.toLowerCase();
+            const filtered = allContacts.filter(c =>
+                (c.client_name || '').toLowerCase().includes(query) ||
+                (c.address || '').toLowerCase().includes(query) ||
+                (c.phone_number || '').toLowerCase().includes(query)
+            );
+            renderContactsTable(filtered);
         };
 
         init();
