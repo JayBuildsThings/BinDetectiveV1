@@ -401,7 +401,10 @@
 
         window.confirmLogout = async function() {
             try {
-                await supabase.auth.signOut();
+                await Promise.race([
+                    supabase.auth.signOut(),
+                    new Promise(resolve => setTimeout(resolve, 2000))
+                ]);
             } catch (e) {
                 console.warn('Logout failed', e);
             }
