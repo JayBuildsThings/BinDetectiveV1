@@ -164,6 +164,10 @@
             lockScreen.classList.toggle('hidden', !show);
         }
 
+        function redirectToLogin() {
+            window.location.href = "login.html";
+        }
+
         function setAuthMessage(message, isError = false) {
             const el = document.getElementById('auth-message');
             if (!el) return;
@@ -318,7 +322,7 @@
         window.logout = async function() {
             if (confirm("Logout and return to sign in?")) {
                 await supabase.auth.signOut();
-                location.reload();
+                redirectToLogin();
             }
         };
 
@@ -481,7 +485,8 @@
                 return;
             }
             if (!data.session) {
-                showLockScreen(true);
+                redirectToLogin();
+                return;
             } else {
                 currentUser = data.session.user;
                 await postAuthInit();
@@ -496,7 +501,7 @@
                     currentUser = null;
                     currentCompanyId = null;
                     currentIsAdmin = false;
-                    showLockScreen(true);
+                    redirectToLogin();
                     return;
                 }
                 currentUser = session.user;

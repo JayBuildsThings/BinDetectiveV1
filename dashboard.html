@@ -117,7 +117,7 @@
                 </a>
                 
                 <div class="w-px h-8 bg-gray-200 mx-2"></div>
-                <a href="manage.html" class="flex items-center gap-2 text-sm font-bold text-gray-500 hover:text-primary transition-colors">
+                <a href="manage.html" target="_blank" rel="noopener noreferrer" class="flex items-center gap-2 text-sm font-bold text-gray-500 hover:text-primary transition-colors">
                     <span>Open App</span>
                     <span class="material-symbols-outlined text-lg">open_in_new</span>
                 </a>
@@ -253,6 +253,10 @@
         function showLockScreen(show) {
             const lockScreen = document.getElementById('lock-screen');
             lockScreen.classList.toggle('hidden', !show);
+        }
+
+        function redirectToLogin() {
+            window.location.href = "login.html";
         }
 
         function setAuthMessage(message, isError = false) {
@@ -461,7 +465,7 @@
         window.logout = async function() {
             if (confirm("Logout and lock vault?")) {
                 await supabase.auth.signOut();
-                location.reload();
+                redirectToLogin();
             }
         };
 
@@ -515,7 +519,8 @@
                 return;
             }
             if (!data.session) {
-                showLockScreen(true);
+                redirectToLogin();
+                return;
             } else {
                 currentUser = data.session.user;
                 await postAuthInit();
@@ -529,7 +534,7 @@
                 if (!session) {
                     currentUser = null;
                     currentCompanyId = null;
-                    showLockScreen(true);
+                    redirectToLogin();
                     return;
                 }
                 currentUser = session.user;
