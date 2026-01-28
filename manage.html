@@ -373,6 +373,7 @@
         let currentUser = null;
         let addressSelected = false;
         let addressAutocomplete = null;
+        let autoFillTimeouts = {};
 
         function showLockScreen(show) {
             const lockScreen = document.getElementById('lock-screen');
@@ -660,7 +661,13 @@
             if (type !== 'PickUp' || !binId) return;
 
             try {
-                const { data } = await supabase.from('activity_logs').select('*').eq('bin_id', binId).order('created_at', { ascending: false }).limit(1).maybeSingle();
+            const { data } = await supabase
+                .from('activity_logs')
+                .select('bin_id,client_name,address,phone_number')
+                .eq('bin_id', binId)
+                .order('created_at', { ascending: false })
+                .limit(1)
+                .maybeSingle();
                 if (data) {
                     if (data.client_name) document.getElementById('log-client-name').value = data.client_name;
                     if (data.address) {
@@ -709,7 +716,11 @@
         window.loadBinLocations = async function() {
             const container = document.getElementById('bin-list-container');
             container.innerHTML = `<p class="text-center text-gray-500 mt-10 animate-pulse">Loading bin locations...</p>`;
-            const res = await runWithRetry('bin locations', () => supabase.from('activity_logs').select('*').order('created_at', { ascending: false }));
+            const res = await runWithRetry('bin locations', () => supabase
+                .from('activity_logs')
+                .select('bin_id,activity_type,address,created_at')
+                .order('created_at', { ascending: false })
+                .limit(1000));
             if (res.error) {
                 renderLoadError(container, res.error.message || 'Unable to load bin locations.', 'loadBinLocations');
                 return;
@@ -767,7 +778,11 @@
         window.loadContacts = async function() {
             const container = document.getElementById('contact-list-container');
             container.innerHTML = `<p class="text-center text-gray-500 mt-10 animate-pulse">Fetching your vault...</p>`;
-            const res = await runWithRetry('contacts', () => supabase.from('activity_logs').select('*').order('created_at', { ascending: false }));
+            const res = await runWithRetry('contacts', () => supabase
+                .from('activity_logs')
+                .select('client_name,address,phone_number,created_at')
+                .order('created_at', { ascending: false })
+                .limit(1000));
             if (res.error) {
                 renderLoadError(container, res.error.message || 'Unable to load contacts.', 'loadContacts');
                 return;
@@ -827,7 +842,9 @@
                 // Fetch All Requests (Unsorted by SQL)
                 const res = await runWithRetry('requests', () => supabase
                     .from('service_requests')
-                    .select('*'));
+                    .select('request_type,client_name,address,notes,created_at,phone')
+                    .order('created_at', { ascending: false })
+                    .limit(100));
                 if (res.error) throw res.error;
                 const data = res.data || [];
                 if (!data || data.length === 0) {
@@ -962,23 +979,39 @@
                 return;
             }
 
+            if (autoFillTimeouts[dbColumn]) {
+                clearTimeout(autoFillTimeouts[dbColumn]);
+            }
+
             if(val.length < 1) { listEl.classList.add('hidden'); return; }
             document.querySelectorAll('.custom-dropdown').forEach(d => { if(d.id !== listId) d.classList.add('hidden'); });
 
-            const { data } = await supabase.from('activity_logs').select('*').ilike(dbColumn, `%${val}%`).limit(5);
-            if(!data || data.length === 0) return;
-            
-            listEl.innerHTML = [...new Set(data.map(d => d[dbColumn]))].map(v => 
-                `<div class="p-3.5 hover:bg-gray-100 dark:hover:bg-white/5 cursor-pointer text-sm border-b border-gray-100 dark:border-white/5" onclick="selectSug('${v}', '${dbColumn}')">${v}</div>`
-            ).join('');
-            listEl.classList.remove('hidden');
+            autoFillTimeouts[dbColumn] = setTimeout(async () => {
+                if (input.value.trim() !== val) return;
+                const { data } = await supabase
+                    .from('activity_logs')
+                    .select(dbColumn)
+                    .ilike(dbColumn, `%${val}%`)
+                    .limit(5);
+                if(!data || data.length === 0) return;
+                
+                listEl.innerHTML = [...new Set(data.map(d => d[dbColumn]))].map(v => 
+                    `<div class="p-3.5 hover:bg-gray-100 dark:hover:bg-white/5 cursor-pointer text-sm border-b border-gray-100 dark:border-white/5" onclick="selectSug('${v}', '${dbColumn}')">${v}</div>`
+                ).join('');
+                listEl.classList.remove('hidden');
+            }, 400);
         };
 
         window.selectSug = async function(val, col) {
             document.getElementById(`log-${col.replace('_', '-')}`).value = val;
             document.querySelectorAll('.custom-dropdown').forEach(d => d.classList.add('hidden'));
             
-            const { data } = await supabase.from('activity_logs').select('*').eq(col, val).order('created_at', { ascending: false }).limit(1);
+            const { data } = await supabase
+                .from('activity_logs')
+                .select('bin_id,client_name,address,phone_number')
+                .eq(col, val)
+                .order('created_at', { ascending: false })
+                .limit(1);
 
             if(data[0]) {
                 if(data[0].bin_id) document.getElementById('log-bin-id').value = data[0].bin_id;

@@ -696,7 +696,10 @@
                 setDashboardError(binsRes.error.message || 'Unable to load bins.');
                 return;
             }
-            const logsRes = await runWithRetry('activity_logs', () => supabase.from('activity_logs').select('*').order('created_at', { ascending: false }));
+            const logsRes = await runWithRetry('activity_logs', () => supabase
+                .from('activity_logs')
+                .select('bin_id,activity_type,client_name,address,created_at')
+                .order('created_at', { ascending: false }));
             if (logsRes.error) {
                 setDashboardError(logsRes.error.message || 'Unable to load activity logs.');
                 return;
