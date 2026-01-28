@@ -159,6 +159,18 @@
         </div>
     </div>
 
+    <!-- DASHBOARD ACCESS MODAL -->
+    <div id="dashboard-access-modal" class="fixed inset-0 z-[110] bg-black/40 hidden items-center justify-center p-6">
+        <div class="w-full max-w-sm bg-white rounded-2xl p-6 shadow-2xl text-center">
+            <div class="w-16 h-16 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                <span class="material-symbols-outlined text-3xl">admin_panel_settings</span>
+            </div>
+            <h2 class="text-lg font-black text-dark mb-2">Admin only</h2>
+            <p class="text-xs text-gray-500 mb-6">This is only for admins.</p>
+            <button onclick="closeDashboardAccessModal()" class="w-full h-11 rounded-xl bg-primary text-white font-bold">Okay</button>
+        </div>
+    </div>
+
     <!-- TOAST COMPONENT -->
     <div id="toast-notification" class="fixed top-6 left-1/2 -translate-x-1/2 bg-surface-dark text-white px-6 py-4 rounded-xl shadow-2xl z-50 flex items-center gap-3 min-w-[300px] transition-all duration-300 transform scale-90 opacity-0 pointer-events-none">
         <span id="toast-icon" class="material-symbols-outlined">info</span>
@@ -228,6 +240,20 @@
                             <span class="text-sm font-medium text-slate-500 dark:text-slate-400 leading-tight">Client service requests</span>
                         </div>
                         <div class="ml-auto pr-2"><span class="material-symbols-outlined text-4xl text-slate-300 group-active:text-blue-600">arrow_forward_ios</span></div>
+                    </div>
+                </button>
+
+                <button id="dashboard-tile" type="button" onclick="openDashboard()" class="group relative w-full overflow-hidden rounded-2xl bg-white dark:bg-slate-800 shadow-lg shadow-slate-200/50 dark:shadow-black/20 transition-all active:scale-[0.98] border-2 border-transparent focus:border-purple-500 active:border-purple-500 cursor-pointer">
+                    <div class="absolute inset-0 bg-purple-500 opacity-0 group-active:opacity-10 transition-opacity"></div>
+                    <div class="flex flex-row items-center h-36 p-4 gap-6">
+                        <div class="flex shrink-0 items-center justify-center w-24 h-24 rounded-xl bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400">
+                            <span class="material-symbols-outlined !text-6xl">dashboard</span>
+                        </div>
+                        <div class="flex flex-col items-start justify-center text-left max-w-[160px]">
+                            <span class="text-2xl font-extrabold text-slate-900 dark:text-white leading-none mb-1 group-active:text-purple-600">DASHBOARD</span>
+                            <span class="text-sm font-medium text-slate-500 dark:text-slate-400 leading-tight">Admin overview</span>
+                        </div>
+                        <div class="ml-auto pr-2"><span class="material-symbols-outlined text-4xl text-slate-300 group-active:text-purple-600">arrow_forward_ios</span></div>
                     </div>
                 </button>
             </div>
@@ -371,6 +397,8 @@
         window.requestsData = []; 
         let currentCompanyId = null;
         let currentUser = null;
+        let currentIsAdmin = false;
+        let currentDashboardAccess = true;
         let addressSelected = false;
         let addressAutocomplete = null;
         let autoFillTimeouts = {};
@@ -389,6 +417,35 @@
             if (!modal) return;
             modal.classList.toggle('hidden', !show);
             modal.classList.toggle('flex', show);
+        }
+
+        function showDashboardAccessModal(show) {
+            const modal = document.getElementById('dashboard-access-modal');
+            if (!modal) return;
+            modal.classList.toggle('hidden', !show);
+            modal.classList.toggle('flex', show);
+        }
+
+        window.closeDashboardAccessModal = function() {
+            showDashboardAccessModal(false);
+        };
+
+        window.openDashboard = function() {
+            if (currentIsAdmin && currentDashboardAccess) {
+                window.location.href = "dashboard.html";
+                return;
+            }
+            showDashboardAccessModal(true);
+        };
+
+        function updateDashboardTileVisibility() {
+            const tile = document.getElementById('dashboard-tile');
+            if (!tile) return;
+            if (currentDashboardAccess) {
+                tile.classList.remove('hidden');
+            } else {
+                tile.classList.add('hidden');
+            }
         }
 
         window.closeLogoutModal = function() {
@@ -473,6 +530,31 @@
             return false;
         }
 
+        async function loadAccessTier() {
+            if (!currentCompanyId || !currentUser?.email) {
+                currentIsAdmin = false;
+                currentDashboardAccess = false;
+                updateDashboardTileVisibility();
+                return false;
+            }
+            const { data } = await supabase
+                .from('company_allowed_emails')
+                .select('is_admin,dashboard_access')
+                .eq('company_id', currentCompanyId)
+                .eq('email', currentUser.email)
+                .maybeSingle();
+            if (data) {
+                currentIsAdmin = !!data.is_admin;
+                currentDashboardAccess = data.dashboard_access !== false;
+                updateDashboardTileVisibility();
+                return true;
+            }
+            currentIsAdmin = false;
+            currentDashboardAccess = false;
+            updateDashboardTileVisibility();
+            return false;
+        }
+
         async function ensureCompanyMembership() {
             const companyName = document.getElementById('auth-company').value.trim();
             const email = (currentUser?.email || '').trim();
@@ -501,6 +583,7 @@
                     return;
                 }
             }
+            await loadAccessTier();
             showLockScreen(false);
             fetchMasterBins();
         }
