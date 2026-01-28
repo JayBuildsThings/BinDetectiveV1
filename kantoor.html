@@ -95,6 +95,21 @@
         </div>
     </div>
 
+    <!-- LOGOUT CONFIRM MODAL -->
+    <div id="logout-modal" class="fixed inset-0 z-[110] bg-black/40 hidden items-center justify-center p-6">
+        <div class="w-full max-w-sm bg-white rounded-2xl p-6 shadow-2xl text-center">
+            <div class="w-16 h-16 bg-red-50 text-primary rounded-full flex items-center justify-center mx-auto mb-4">
+                <span class="material-symbols-outlined text-3xl">logout</span>
+            </div>
+            <h2 class="text-lg font-black text-dark mb-2">Log out?</h2>
+            <p class="text-xs text-gray-500 mb-6">Are you sure you want to log out?</p>
+            <div class="flex gap-3">
+                <button onclick="closeLogoutModal()" class="flex-1 h-11 rounded-xl bg-gray-100 text-gray-600 font-bold">Cancel</button>
+                <button onclick="confirmLogout()" class="flex-1 h-11 rounded-xl bg-primary text-white font-bold">Log out</button>
+            </div>
+        </div>
+    </div>
+
     <!-- MAIN CONTENT -->
     <div class="max-w-7xl mx-auto min-h-screen p-6">
         
@@ -232,6 +247,22 @@
         function redirectToLogin() {
             window.location.href = "login.html";
         }
+
+        function showLogoutModal(show) {
+            const modal = document.getElementById('logout-modal');
+            if (!modal) return;
+            modal.classList.toggle('hidden', !show);
+            modal.classList.toggle('flex', show);
+        }
+
+        window.closeLogoutModal = function() {
+            showLogoutModal(false);
+        };
+
+        window.confirmLogout = async function() {
+            await supabase.auth.signOut();
+            redirectToLogin();
+        };
 
         function setAuthMessage(message, isError = false) {
             const el = document.getElementById('auth-message');
@@ -398,10 +429,7 @@
         };
 
         window.logout = async function() {
-            if (confirm("Logout and lock vault?")) {
-                await supabase.auth.signOut();
-                redirectToLogin();
-            }
+            showLogoutModal(true);
         };
 
         // --- INIT ---
