@@ -148,6 +148,9 @@
         </div>
     </div>
 
+    <!-- AUTH DEBUG BADGE (enable with ?debug=1) -->
+    <div id="auth-debug" class="fixed bottom-4 right-4 bg-white text-gray-700 border border-gray-200 shadow-lg rounded-xl px-4 py-3 text-xs font-mono hidden z-50"></div>
+
     <!-- MAIN CONTENT -->
     <div class="max-w-7xl mx-auto min-h-screen p-6">
         
@@ -424,6 +427,7 @@
         let currentUser = null;
         let currentIsAdmin = false;
         let currentDashboardAccess = true;
+        const debugAuth = new URLSearchParams(window.location.search).has('debug');
         let editingContactId = null;
         let editingContactName = null;
         let creatingContact = false;
@@ -465,6 +469,17 @@
             showLogoutModal(false);
             redirectToLogin();
         };
+
+        function updateAuthDebug(session) {
+            if (!debugAuth) return;
+            const badge = document.getElementById('auth-debug');
+            if (!badge) return;
+            badge.classList.remove('hidden');
+            const email = session?.user?.email || 'none';
+            const expiresAt = session?.expires_at ? new Date(session.expires_at * 1000).toLocaleTimeString() : 'n/a';
+            const now = new Date().toLocaleTimeString();
+            badge.innerText = `auth: ${session ? 'active' : 'none'}\nuser: ${email}\nexpires: ${expiresAt}\nchecked: ${now}`;
+        }
 
         function showContactEditor(show) {
             const modal = document.getElementById('contact-edit-modal');
@@ -912,6 +927,7 @@
         // --- INIT ---
         async function init() {
             const { data } = await supabase.auth.getSession();
+            updateAuthDebug(data.session);
             if (data.session && isPasswordSetupFlow()) {
                 showLockScreen(true);
                 showResetPassword(true);
@@ -925,6 +941,7 @@
                 await postAuthInit();
             }
             supabase.auth.onAuthStateChange(async (event, session) => {
+                updateAuthDebug(session);
                 if (event === 'PASSWORD_RECOVERY' || isPasswordSetupFlow()) {
                     showLockScreen(true);
                     showResetPassword(true);
@@ -939,6 +956,13 @@
                 currentUser = session.user;
                 await postAuthInit();
             });
+        }
+
+        if (debugAuth) {
+            setInterval(async () => {
+                const { data } = await supabase.auth.getSession();
+                updateAuthDebug(data.session);
+            }, 30000);
         }
 
         // --- NAVIGATION & MAP RESIZE ---
