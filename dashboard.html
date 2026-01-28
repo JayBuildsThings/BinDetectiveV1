@@ -108,6 +108,46 @@
         </div>
     </div>
 
+    <!-- CONTACT EDIT MODAL -->
+    <div id="contact-edit-modal" class="fixed inset-0 z-[110] bg-black/40 hidden items-center justify-center p-6">
+        <div class="w-full max-w-md bg-white rounded-2xl p-6 shadow-2xl">
+            <div class="flex items-center justify-between mb-4">
+                <h2 id="contact-edit-title" class="text-lg font-black text-dark">Edit Contact</h2>
+                <button onclick="closeContactEditor()" class="text-gray-400 hover:text-gray-600">
+                    <span class="material-symbols-outlined">close</span>
+                </button>
+            </div>
+            <div class="flex flex-col gap-3">
+                <input type="text" id="contact-edit-name" placeholder="Name"
+                       class="w-full h-11 bg-gray-100 border-none rounded-xl px-4 focus:ring-2 focus:ring-primary">
+                <input type="tel" id="contact-edit-phone" placeholder="Phone"
+                       class="w-full h-11 bg-gray-100 border-none rounded-xl px-4 focus:ring-2 focus:ring-primary">
+                <input type="text" id="contact-edit-address" placeholder="Address"
+                       class="w-full h-11 bg-gray-100 border-none rounded-xl px-4 focus:ring-2 focus:ring-primary">
+            </div>
+            <p id="contact-edit-message" class="text-xs text-gray-500 mt-3 min-h-[16px]"></p>
+            <div class="flex gap-3 mt-4">
+                <button onclick="closeContactEditor()" class="flex-1 h-11 rounded-xl bg-gray-100 text-gray-600 font-bold">Cancel</button>
+                <button onclick="saveContactChanges()" class="flex-1 h-11 rounded-xl bg-primary text-white font-bold">Save</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- CONTACT DELETE MODAL -->
+    <div id="contact-delete-modal" class="fixed inset-0 z-[110] bg-black/40 hidden items-center justify-center p-6">
+        <div class="w-full max-w-sm bg-white rounded-2xl p-6 shadow-2xl text-center">
+            <div class="w-16 h-16 bg-red-50 text-red-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                <span class="material-symbols-outlined text-3xl">delete</span>
+            </div>
+            <h2 class="text-lg font-black text-dark mb-2">Delete contact?</h2>
+            <p id="contact-delete-message" class="text-xs text-gray-500 mb-6">This will remove the contact.</p>
+            <div class="flex gap-3">
+                <button onclick="closeContactDelete()" class="flex-1 h-11 rounded-xl bg-gray-100 text-gray-600 font-bold">Cancel</button>
+                <button onclick="confirmContactDelete()" class="flex-1 h-11 rounded-xl bg-primary text-white font-bold">Delete</button>
+            </div>
+        </div>
+    </div>
+
     <!-- MAIN CONTENT -->
     <div class="max-w-7xl mx-auto min-h-screen p-6">
         
@@ -316,6 +356,9 @@
                                oninput="filterContacts()">
                     </div>
                     <div class="flex gap-2">
+                        <button onclick="openContactEditor()" class="px-3 py-2 text-xs font-bold text-white bg-primary rounded-lg hover:bg-red-600 transition-colors">
+                            Add Contact
+                        </button>
                         <button onclick="loadContacts()" class="p-2 text-gray-400 hover:text-primary transition-colors" title="Refresh">
                             <span class="material-symbols-outlined">refresh</span>
                         </button>
@@ -331,10 +374,11 @@
                                     <th class="px-6 py-4">Phone</th>
                                     <th class="px-6 py-4">Address</th>
                                     <th class="px-6 py-4">Last Updated</th>
+                                    <th class="px-6 py-4 text-right">Actions</th>
                                 </tr>
                             </thead>
                             <tbody id="contacts-body" class="divide-y divide-gray-100">
-                                <tr><td colspan="4" class="px-6 py-10 text-center text-gray-400">Loading contacts...</td></tr>
+                                <tr><td colspan="5" class="px-6 py-10 text-center text-gray-400">Loading contacts...</td></tr>
                             </tbody>
                         </table>
                     </div>
@@ -380,6 +424,10 @@
         let currentUser = null;
         let currentIsAdmin = false;
         let currentDashboardAccess = true;
+        let editingContactId = null;
+        let editingContactName = null;
+        let creatingContact = false;
+        let deleteContactName = null;
 
         function showLockScreen(show) {
             const lockScreen = document.getElementById('lock-screen');
@@ -416,6 +464,141 @@
             }
             showLogoutModal(false);
             redirectToLogin();
+        };
+
+        function showContactEditor(show) {
+            const modal = document.getElementById('contact-edit-modal');
+            if (!modal) return;
+            modal.classList.toggle('hidden', !show);
+            modal.classList.toggle('flex', show);
+        }
+
+        function setContactEditMessage(message, isError = false) {
+            const el = document.getElementById('contact-edit-message');
+            if (!el) return;
+            el.innerText = message || '';
+            el.className = `text-xs mt-3 min-h-[16px] ${isError ? 'text-red-500' : 'text-gray-500'}`;
+        }
+
+        window.closeContactEditor = function() {
+            showContactEditor(false);
+            setContactEditMessage('');
+            editingContactId = null;
+            editingContactName = null;
+            creatingContact = false;
+        };
+
+        window.openContactEditor = function(contactId = null) {
+            if (!currentIsAdmin) return;
+            const title = document.getElementById('contact-edit-title');
+            if (!contactId) {
+                creatingContact = true;
+                editingContactId = null;
+                editingContactName = null;
+                if (title) title.innerText = 'Add Contact';
+                document.getElementById('contact-edit-name').value = '';
+                document.getElementById('contact-edit-phone').value = '';
+                document.getElementById('contact-edit-address').value = '';
+                setContactEditMessage('');
+                showContactEditor(true);
+                return;
+            }
+            const contact = allContacts.find(c => c.id === contactId);
+            if (!contact) return;
+            creatingContact = false;
+            editingContactId = contactId;
+            editingContactName = contact.client_name || '';
+            if (title) title.innerText = 'Edit Contact';
+            document.getElementById('contact-edit-name').value = contact.client_name || '';
+            document.getElementById('contact-edit-phone').value = contact.phone_number || '';
+            document.getElementById('contact-edit-address').value = contact.address || '';
+            setContactEditMessage('');
+            showContactEditor(true);
+        };
+
+        window.saveContactChanges = async function() {
+            const name = document.getElementById('contact-edit-name').value.trim();
+            const phone = document.getElementById('contact-edit-phone').value.trim();
+            const address = document.getElementById('contact-edit-address').value.trim();
+            if (!name) {
+                setContactEditMessage('Name is required.', true);
+                return;
+            }
+            setContactEditMessage('Saving...');
+            const updatePayload = {
+                client_name: name,
+                phone_number: phone || null,
+                address: address || null
+            };
+            let error;
+            if (creatingContact) {
+                ({ error } = await supabase
+                    .from('activity_logs')
+                    .insert([{
+                        company_id: currentCompanyId,
+                        activity_type: 'Contact',
+                        bin_id: null,
+                        ...updatePayload
+                    }]));
+            } else if (editingContactName) {
+                ({ error } = await supabase
+                    .from('activity_logs')
+                    .update(updatePayload)
+                    .eq('company_id', currentCompanyId)
+                    .eq('client_name', editingContactName));
+            } else {
+                ({ error } = await supabase
+                    .from('activity_logs')
+                    .update(updatePayload)
+                    .eq('id', editingContactId)
+                    .eq('company_id', currentCompanyId));
+            }
+            if (error) {
+                setContactEditMessage(error.message || 'Unable to save contact.', true);
+                return;
+            }
+            closeContactEditor();
+            await loadContacts();
+        };
+
+        function showContactDeleteModal(show) {
+            const modal = document.getElementById('contact-delete-modal');
+            if (!modal) return;
+            modal.classList.toggle('hidden', !show);
+            modal.classList.toggle('flex', show);
+        }
+
+        window.closeContactDelete = function() {
+            showContactDeleteModal(false);
+            deleteContactName = null;
+        };
+
+        window.openContactDelete = function(contactName) {
+            if (!currentIsAdmin || !contactName) return;
+            deleteContactName = contactName;
+            const message = document.getElementById('contact-delete-message');
+            if (message) {
+                message.innerText = `This will remove ${contactName} from contacts.`;
+            }
+            showContactDeleteModal(true);
+        };
+
+        window.confirmContactDelete = async function() {
+            if (!deleteContactName) return;
+            const { error } = await supabase
+                .from('activity_logs')
+                .delete()
+                .eq('company_id', currentCompanyId)
+                .eq('client_name', deleteContactName);
+            if (error) {
+                setContactsError(error.message || 'Unable to delete contact.');
+                showContactDeleteModal(false);
+                deleteContactName = null;
+                return;
+            }
+            showContactDeleteModal(false);
+            deleteContactName = null;
+            await loadContacts();
         };
 
         function setAuthMessage(message, isError = false) {
@@ -492,7 +675,7 @@
             if (!tbody) return;
             tbody.innerHTML = `
                 <tr>
-                    <td colspan="4" class="px-6 py-10 text-center text-red-500">
+                    <td colspan="5" class="px-6 py-10 text-center text-red-500">
                         ${message}
                         <div class="mt-3">
                             <button onclick="loadContacts()" class="text-xs font-bold text-primary underline">Retry</button>
@@ -1036,10 +1219,10 @@
         async function loadContacts() {
             const tbody = document.getElementById('contacts-body');
             if (!tbody) return;
-            tbody.innerHTML = '<tr><td colspan="4" class="px-6 py-10 text-center text-gray-400">Loading contacts...</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="5" class="px-6 py-10 text-center text-gray-400">Loading contacts...</td></tr>';
             const res = await runWithRetry('contacts', () => supabase
                 .from('activity_logs')
-                .select('client_name,address,phone_number,created_at')
+                .select('id,client_name,address,phone_number,created_at')
                 .order('created_at', { ascending: false })
                 .limit(1000));
             if (res.error) {
@@ -1076,17 +1259,24 @@
             const tbody = document.getElementById('contacts-body');
             if (!tbody) return;
             if (!contacts || contacts.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="4" class="px-6 py-10 text-center text-gray-400">No contacts yet.</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="5" class="px-6 py-10 text-center text-gray-400">No contacts yet.</td></tr>';
                 return;
             }
             tbody.innerHTML = contacts.map(c => {
                 const date = c.created_at ? new Date(c.created_at).toLocaleDateString() : '-';
+                const actions = currentIsAdmin
+                    ? `<div class="flex justify-end gap-3">
+                            <button onclick="openContactEditor('${c.id}')" class="text-xs font-bold text-primary hover:text-red-600">Edit</button>
+                            <button onclick="openContactDelete('${c.client_name || ''}')" class="text-xs font-bold text-red-500 hover:text-red-600">Delete</button>
+                       </div>`
+                    : `<span class="text-xs text-gray-400">—</span>`;
                 return `
                     <tr class="hover:bg-gray-50 transition-colors">
                         <td class="px-6 py-4 font-medium text-gray-800">${c.client_name || '-'}</td>
                         <td class="px-6 py-4 text-gray-600">${c.phone_number || '-'}</td>
                         <td class="px-6 py-4 text-gray-600 max-w-xs truncate" title="${c.address || ''}">${c.address || '-'}</td>
                         <td class="px-6 py-4 text-gray-500 text-xs font-mono">${date}</td>
+                        <td class="px-6 py-4 text-right">${actions}</td>
                     </tr>
                 `;
             }).join('');
