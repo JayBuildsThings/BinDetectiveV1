@@ -274,11 +274,12 @@
                                 <tr>
                                     <th class="px-6 py-4">Email</th>
                                     <th class="px-6 py-4">Role</th>
+                                    <th class="px-6 py-4">Dashboard Access</th>
                                     <th class="px-6 py-4">Status</th>
                                 </tr>
                             </thead>
                             <tbody id="users-body" class="divide-y divide-gray-100">
-                                <tr><td colspan="3" class="px-6 py-10 text-center text-gray-400">Loading users...</td></tr>
+                                <tr><td colspan="4" class="px-6 py-10 text-center text-gray-400">Loading users...</td></tr>
                             </tbody>
                         </table>
                     </div>
@@ -378,6 +379,7 @@
         let currentCompanyId = null;
         let currentUser = null;
         let currentIsAdmin = false;
+        let currentDashboardAccess = true;
 
         function showLockScreen(show) {
             const lockScreen = document.getElementById('lock-screen');
@@ -386,6 +388,10 @@
 
         function redirectToLogin() {
             window.location.href = "login.html";
+        }
+
+        function redirectToManage() {
+            window.location.href = "manage.html";
         }
 
         function showLogoutModal(show) {
@@ -498,16 +504,40 @@
         async function loadCompanyId() {
             const { data } = await supabase
                 .from('company_users')
-                .select('company_id,is_admin')
+                .select('company_id')
                 .eq('user_id', currentUser.id)
                 .maybeSingle();
             if (data?.company_id) {
                 currentCompanyId = data.company_id;
+                return true;
+            }
+            currentIsAdmin = false;
+            currentDashboardAccess = true;
+            updateUsersNavVisibility();
+            return false;
+        }
+
+        async function loadAccessTier() {
+            if (!currentCompanyId || !currentUser?.email) {
+                currentIsAdmin = false;
+                currentDashboardAccess = false;
+                updateUsersNavVisibility();
+                return false;
+            }
+            const { data } = await supabase
+                .from('company_allowed_emails')
+                .select('is_admin,dashboard_access')
+                .eq('company_id', currentCompanyId)
+                .eq('email', currentUser.email)
+                .maybeSingle();
+            if (data) {
                 currentIsAdmin = !!data.is_admin;
+                currentDashboardAccess = data.dashboard_access !== false;
                 updateUsersNavVisibility();
                 return true;
             }
             currentIsAdmin = false;
+            currentDashboardAccess = false;
             updateUsersNavVisibility();
             return false;
         }
@@ -539,6 +569,11 @@
                     showLockScreen(true);
                     return;
                 }
+            }
+            const hasAccess = await loadAccessTier();
+            if (!hasAccess || !currentDashboardAccess) {
+                redirectToManage();
+                return;
             }
             showLockScreen(false);
             switchDashboardTab(activeDashboardTab);
@@ -944,7 +979,7 @@
             tbody.innerHTML = '<tr><td colspan="3" class="px-6 py-10 text-center text-gray-400">Loading users...</td></tr>';
             const res = await runWithRetry('allowed emails', () => supabase
                 .from('company_allowed_emails')
-                .select('id,email,is_admin')
+                .select('id,email,is_admin,dashboard_access')
                 .eq('company_id', currentCompanyId)
                 .order('email', { ascending: true }));
             if (res.error) {
@@ -974,17 +1009,23 @@
             const tbody = document.getElementById('users-body');
             if (!tbody) return;
             if (!users || users.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="3" class="px-6 py-10 text-center text-gray-400">No users yet.</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="4" class="px-6 py-10 text-center text-gray-400">No users yet.</td></tr>';
                 return;
             }
             tbody.innerHTML = users.map(row => {
                 const role = row.is_admin ? 'Admin' : 'User';
                 const statusClass = row.is_admin ? 'bg-primary/10 text-primary border-primary/20' : 'bg-gray-100 text-gray-600 border-gray-200';
+                const accessEnabled = row.dashboard_access !== false;
+                const accessClass = accessEnabled ? 'bg-green-100 text-green-700 border-green-200' : 'bg-gray-100 text-gray-600 border-gray-200';
+                const accessLabel = accessEnabled ? 'Enabled' : 'Disabled';
                 return `
                     <tr class="hover:bg-gray-50 transition-colors">
                         <td class="px-6 py-4 font-medium text-gray-800">${row.email}</td>
                         <td class="px-6 py-4">
                             <span class="px-2.5 py-1 rounded-md text-xs font-bold uppercase tracking-wide border ${statusClass}">${role}</span>
+                        </td>
+                        <td class="px-6 py-4">
+                            <span class="px-2.5 py-1 rounded-md text-xs font-bold uppercase tracking-wide border ${accessClass}">${accessLabel}</span>
                         </td>
                         <td class="px-6 py-4 text-gray-500">Allowed</td>
                     </tr>

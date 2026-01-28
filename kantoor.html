@@ -238,6 +238,7 @@
 
         let currentCompanyId = null;
         let currentUser = null;
+        let currentDashboardAccess = true;
 
         function showLockScreen(show) {
             const lockScreen = document.getElementById('lock-screen');
@@ -246,6 +247,10 @@
 
         function redirectToLogin() {
             window.location.href = "login.html";
+        }
+
+        function redirectToManage() {
+            window.location.href = "manage.html";
         }
 
         function showLogoutModal(show) {
@@ -308,6 +313,26 @@
                 currentCompanyId = data.company_id;
                 return true;
             }
+            currentDashboardAccess = true;
+            return false;
+        }
+
+        async function loadAccessTier() {
+            if (!currentCompanyId || !currentUser?.email) {
+                currentDashboardAccess = false;
+                return false;
+            }
+            const { data } = await supabase
+                .from('company_allowed_emails')
+                .select('dashboard_access')
+                .eq('company_id', currentCompanyId)
+                .eq('email', currentUser.email)
+                .maybeSingle();
+            if (data) {
+                currentDashboardAccess = data.dashboard_access !== false;
+                return true;
+            }
+            currentDashboardAccess = false;
             return false;
         }
 
@@ -338,6 +363,11 @@
                     showLockScreen(true);
                     return;
                 }
+            }
+            const hasAccess = await loadAccessTier();
+            if (!hasAccess || !currentDashboardAccess) {
+                redirectToManage();
+                return;
             }
             showLockScreen(false);
             fetchDashboardData();

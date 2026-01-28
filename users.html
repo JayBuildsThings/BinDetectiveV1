@@ -145,12 +145,13 @@
                             <tr>
                                 <th class="px-6 py-4">Email</th>
                                 <th class="px-6 py-4">Role</th>
+                                <th class="px-6 py-4">Dashboard Access</th>
                                 <th class="px-6 py-4">Status</th>
                                 <th class="px-6 py-4 text-right">Actions</th>
                             </tr>
                         </thead>
                         <tbody id="users-body" class="divide-y divide-gray-100">
-                            <tr><td colspan="4" class="px-6 py-10 text-center text-gray-400">Loading users...</td></tr>
+                            <tr><td colspan="5" class="px-6 py-10 text-center text-gray-400">Loading users...</td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -173,6 +174,7 @@
         let currentCompanyId = null;
         let currentUser = null;
         let currentIsAdmin = false;
+        let currentDashboardAccess = true;
 
         function showLockScreen(show) {
             const lockScreen = document.getElementById('lock-screen');
@@ -181,6 +183,10 @@
 
         function redirectToLogin() {
             window.location.href = "login.html";
+        }
+
+        function redirectToManage() {
+            window.location.href = "manage.html";
         }
 
         function showLogoutModal(show) {
@@ -265,15 +271,37 @@
         async function loadCompanyId() {
             const { data } = await supabase
                 .from('company_users')
-                .select('company_id,is_admin')
+                .select('company_id')
                 .eq('user_id', currentUser.id)
                 .maybeSingle();
             if (data?.company_id) {
                 currentCompanyId = data.company_id;
-                currentIsAdmin = !!data.is_admin;
                 return true;
             }
             currentIsAdmin = false;
+            currentDashboardAccess = true;
+            return false;
+        }
+
+        async function loadAccessTier() {
+            if (!currentCompanyId || !currentUser?.email) {
+                currentIsAdmin = false;
+                currentDashboardAccess = false;
+                return false;
+            }
+            const { data } = await supabase
+                .from('company_allowed_emails')
+                .select('is_admin,dashboard_access')
+                .eq('company_id', currentCompanyId)
+                .eq('email', currentUser.email)
+                .maybeSingle();
+            if (data) {
+                currentIsAdmin = !!data.is_admin;
+                currentDashboardAccess = data.dashboard_access !== false;
+                return true;
+            }
+            currentIsAdmin = false;
+            currentDashboardAccess = false;
             return false;
         }
 
@@ -304,6 +332,11 @@
                     showLockScreen(true);
                     return;
                 }
+            }
+            const hasAccess = await loadAccessTier();
+            if (!hasAccess || !currentDashboardAccess) {
+                redirectToManage();
+                return;
             }
             showLockScreen(false);
             if (!currentIsAdmin) {
@@ -413,40 +446,68 @@
 
         async function loadAllowedEmails() {
             const tbody = document.getElementById('users-body');
-            tbody.innerHTML = '<tr><td colspan="4" class="px-6 py-10 text-center text-gray-400">Loading users...</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="5" class="px-6 py-10 text-center text-gray-400">Loading users...</td></tr>';
             const res = await runWithRetry('allowed emails', () => supabase
                 .from('company_allowed_emails')
-                .select('id,email,is_admin')
+                .select('id,email,is_admin,dashboard_access')
                 .eq('company_id', currentCompanyId)
                 .order('email', { ascending: true }));
             if (res.error) {
                 const detail = res.error.message || 'Unable to load users.';
-                tbody.innerHTML = `<tr><td colspan="4" class="px-6 py-10 text-center text-red-500">${detail}<div class="mt-3"><button onclick="loadAllowedEmails()" class="text-xs font-bold text-primary underline">Retry</button></div></td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="5" class="px-6 py-10 text-center text-red-500">${detail}<div class="mt-3"><button onclick="loadAllowedEmails()" class="text-xs font-bold text-primary underline">Retry</button></div></td></tr>`;
                 setAllowedEmailsMessage(detail, true);
                 return;
             }
             const data = res.data || [];
             if (!data || data.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="4" class="px-6 py-10 text-center text-gray-400">No users yet.</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="5" class="px-6 py-10 text-center text-gray-400">No users yet.</td></tr>';
                 return;
             }
             tbody.innerHTML = data.map(row => {
                 const role = row.is_admin ? 'Admin' : 'User';
                 const statusClass = row.is_admin ? 'bg-primary/10 text-primary border-primary/20' : 'bg-gray-100 text-gray-600 border-gray-200';
+                const accessEnabled = row.dashboard_access !== false;
+                const accessLabel = accessEnabled ? 'Enabled' : 'Disabled';
+                const accessClass = accessEnabled ? 'bg-green-100 text-green-700 border-green-200' : 'bg-gray-100 text-gray-600 border-gray-200';
+                const toggleLabel = accessEnabled ? 'Disable' : 'Enable';
                 return `
                     <tr class="hover:bg-gray-50 transition-colors">
                         <td class="px-6 py-4 font-medium text-gray-800">${row.email}</td>
                         <td class="px-6 py-4">
                             <span class="px-2.5 py-1 rounded-md text-xs font-bold uppercase tracking-wide border ${statusClass}">${role}</span>
                         </td>
+                        <td class="px-6 py-4">
+                            <span class="px-2.5 py-1 rounded-md text-xs font-bold uppercase tracking-wide border ${accessClass}">${accessLabel}</span>
+                        </td>
                         <td class="px-6 py-4 text-gray-500">Allowed</td>
                         <td class="px-6 py-4 text-right">
-                            <button onclick="removeAllowedEmail('${row.id}', ${row.is_admin})" class="text-xs font-bold text-red-500 hover:text-red-600">Remove</button>
+                            <div class="flex justify-end gap-3">
+                                <button onclick="toggleDashboardAccess('${row.id}', ${row.is_admin}, ${accessEnabled})" class="text-xs font-bold text-gray-500 hover:text-primary">${toggleLabel} Access</button>
+                                <button onclick="removeAllowedEmail('${row.id}', ${row.is_admin})" class="text-xs font-bold text-red-500 hover:text-red-600">Remove</button>
+                            </div>
                         </td>
                     </tr>
                 `;
             }).join('');
         }
+
+        window.toggleDashboardAccess = async function(rowId, isAdmin, isEnabled) {
+            if (isAdmin && isEnabled) {
+                alert('Admin access cannot be disabled.');
+                return;
+            }
+            const { error } = await supabase
+                .from('company_allowed_emails')
+                .update({ dashboard_access: !isEnabled })
+                .eq('id', rowId)
+                .eq('company_id', currentCompanyId);
+            if (error) {
+                setAllowedEmailsMessage(error.message || 'Unable to update access.', true);
+                return;
+            }
+            setAllowedEmailsMessage('Dashboard access updated.');
+            await loadAllowedEmails();
+        };
 
         async function inviteAllowedEmail(email) {
             const { data: sessionData } = await supabase.auth.getSession();
