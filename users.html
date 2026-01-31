@@ -246,7 +246,21 @@
         async function runWithRetry(label, fn, attempts = 3) {
             let lastError;
             for (let attempt = 1; attempt <= attempts; attempt++) {
-                const { data, error } = await fn();
+                let data;
+                let error;
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 8000);
+                try {
+                    const result = await fn(controller.signal);
+                    data = result?.data;
+                    error = result?.error;
+                } catch (timeoutError) {
+                    error = timeoutError?.name === 'AbortError'
+                        ? { message: 'Request timed out', code: 'timeout' }
+                        : timeoutError;
+                } finally {
+                    clearTimeout(timeoutId);
+                }
                 if (!error) return { data };
                 lastError = error;
                 console.warn(`${label} attempt ${attempt} failed`, error);
@@ -447,11 +461,12 @@
         async function loadAllowedEmails() {
             const tbody = document.getElementById('users-body');
             tbody.innerHTML = '<tr><td colspan="5" class="px-6 py-10 text-center text-gray-400">Loading users...</td></tr>';
-            const res = await runWithRetry('allowed emails', () => supabase
+            const res = await runWithRetry('allowed emails', (signal) => supabase
                 .from('company_allowed_emails')
                 .select('id,email,is_admin,dashboard_access')
                 .eq('company_id', currentCompanyId)
-                .order('email', { ascending: true }));
+                .order('email', { ascending: true })
+                .abortSignal(signal));
             if (res.error) {
                 const detail = res.error.message || 'Unable to load users.';
                 tbody.innerHTML = `<tr><td colspan="5" class="px-6 py-10 text-center text-red-500">${detail}<div class="mt-3"><button onclick="loadAllowedEmails()" class="text-xs font-bold text-primary underline">Retry</button></div></td></tr>`;

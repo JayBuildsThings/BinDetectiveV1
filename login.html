@@ -51,10 +51,42 @@
     <script>
         const supabaseUrl = 'https://sjpzozgslahdzwqwjtbr.supabase.co';
         const supabaseKey = 'sb_publishable_t01aoRgIetSZ1Fuz0VSrgg_twswmqZV';
-        const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
+        const originalFetch = window.fetch.bind(window);
+        const wrappedSupabaseFetch = async function(resource, options) {
+            const url = typeof resource === 'string' ? resource : resource?.url;
+            const isCompanyUsers = typeof url === 'string' && url.includes('/rest/v1/company_users');
+            const startedAt = Date.now();
+            if (isCompanyUsers) {
+                // #region agent log
+                originalFetch('http://127.0.0.1:7242/ingest/67eb3f48-ab69-4342-b4f8-aedc8e2c2b1b',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'run20',hypothesisId:'H23',location:'login.html:fetchOverride',message:'company_users request start',data:{method:options?.method||'GET'},timestamp:Date.now()})}).catch(()=>{});
+                // #endregion
+            }
+            try {
+                const response = await originalFetch(resource, options);
+                if (isCompanyUsers) {
+                    // #region agent log
+                    originalFetch('http://127.0.0.1:7242/ingest/67eb3f48-ab69-4342-b4f8-aedc8e2c2b1b',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'run20',hypothesisId:'H23',location:'login.html:fetchOverride',message:'company_users request end',data:{status:response.status,ok:response.ok,durationMs:Date.now()-startedAt},timestamp:Date.now()})}).catch(()=>{});
+                    // #endregion
+                }
+                return response;
+            } catch (error) {
+                if (isCompanyUsers) {
+                    // #region agent log
+                    originalFetch('http://127.0.0.1:7242/ingest/67eb3f48-ab69-4342-b4f8-aedc8e2c2b1b',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'run20',hypothesisId:'H23',location:'login.html:fetchOverride',message:'company_users request error',data:{errorName:error?.name||'unknown',durationMs:Date.now()-startedAt},timestamp:Date.now()})}).catch(()=>{});
+                    // #endregion
+                }
+                throw error;
+            }
+        };
+        const supabase = window.supabase.createClient(supabaseUrl, supabaseKey, {
+            global: { fetch: wrappedSupabaseFetch }
+        });
+        const projectRef = new URL(supabaseUrl).hostname.split('.')[0];
+        const authStorageKey = `sb-${projectRef}-auth-token`;
 
         let currentUser = null;
         let currentCompanyId = null;
+        let autoLoginInProgress = false;
 
         function setAuthMessage(message, isError = false) {
             const el = document.getElementById('auth-message');
@@ -64,11 +96,24 @@
         }
 
         async function loadCompanyId() {
-            const { data } = await supabase
+            const start = Date.now();
+            // #region agent log
+            fetch('http://127.0.0.1:7242/ingest/67eb3f48-ab69-4342-b4f8-aedc8e2c2b1b',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'run20',hypothesisId:'H23',location:'login.html:loadCompanyId',message:'company lookup start',data:{hasUser:!!currentUser},timestamp:Date.now()})}).catch(()=>{});
+            // #endregion
+            const slowTimer = setTimeout(() => {
+                // #region agent log
+                fetch('http://127.0.0.1:7242/ingest/67eb3f48-ab69-4342-b4f8-aedc8e2c2b1b',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'run20',hypothesisId:'H23',location:'login.html:loadCompanyId',message:'company lookup slow >3000ms',data:{elapsedMs:Date.now()-start},timestamp:Date.now()})}).catch(()=>{});
+                // #endregion
+            }, 3000);
+            const { data, error } = await supabase
                 .from('company_users')
                 .select('company_id')
                 .eq('user_id', currentUser.id)
                 .maybeSingle();
+            clearTimeout(slowTimer);
+            // #region agent log
+            fetch('http://127.0.0.1:7242/ingest/67eb3f48-ab69-4342-b4f8-aedc8e2c2b1b',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'run20',hypothesisId:'H23',location:'login.html:loadCompanyId',message:'company lookup result',data:{hasData:!!data,companyIdPresent:!!data?.company_id,hasError:!!error,errorCode:error?.code||null,errorStatus:error?.status||null,durationMs:Date.now()-start},timestamp:Date.now()})}).catch(()=>{});
+            // #endregion
             if (data?.company_id) {
                 currentCompanyId = data.company_id;
                 return true;
@@ -81,6 +126,9 @@
             const email = (currentUser?.email || '').trim();
             if (!companyName || !email) {
                 setAuthMessage('Enter your company name to continue.', true);
+                // #region agent log
+                fetch('http://127.0.0.1:7242/ingest/67eb3f48-ab69-4342-b4f8-aedc8e2c2b1b',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'run19',hypothesisId:'H22',location:'login.html:ensureCompanyMembership',message:'missing company name or email',data:{hasCompanyName:!!companyName,hasEmail:!!email},timestamp:Date.now()})}).catch(()=>{});
+                // #endregion
                 return false;
             }
             const { error } = await supabase.rpc('claim_company_by_email', {
@@ -89,6 +137,9 @@
             });
             if (error && !String(error.message).toLowerCase().includes('duplicate key')) {
                 setAuthMessage(error.message, true);
+                // #region agent log
+                fetch('http://127.0.0.1:7242/ingest/67eb3f48-ab69-4342-b4f8-aedc8e2c2b1b',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'run19',hypothesisId:'H22',location:'login.html:ensureCompanyMembership',message:'claim failed',data:{hasError:true},timestamp:Date.now()})}).catch(()=>{});
+                // #endregion
                 return false;
             }
             return loadCompanyId();
@@ -96,11 +147,25 @@
 
         async function postAuthInit() {
             if (!currentUser) return;
+            // #region agent log
+            fetch('http://127.0.0.1:7242/ingest/67eb3f48-ab69-4342-b4f8-aedc8e2c2b1b',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'run19',hypothesisId:'H22',location:'login.html:postAuthInit',message:'postAuthInit start',data:{hasUser:!!currentUser},timestamp:Date.now()})}).catch(()=>{});
+            // #endregion
             const hasCompany = await loadCompanyId();
             if (!hasCompany) {
                 const claimed = await ensureCompanyMembership();
-                if (!claimed) return;
+                if (!claimed) {
+                    // #region agent log
+                    fetch('http://127.0.0.1:7242/ingest/67eb3f48-ab69-4342-b4f8-aedc8e2c2b1b',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'run19',hypothesisId:'H22',location:'login.html:postAuthInit',message:'postAuthInit blocked',data:{reason:'claim_failed'},timestamp:Date.now()})}).catch(()=>{});
+                    // #endregion
+                    return;
+                }
             }
+            // #region agent log
+            fetch('http://127.0.0.1:7242/ingest/67eb3f48-ab69-4342-b4f8-aedc8e2c2b1b',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'run20',hypothesisId:'H23',location:'login.html:postAuthInit',message:'postAuthInit continuing',data:{hasCompany:!!currentCompanyId},timestamp:Date.now()})}).catch(()=>{});
+            // #endregion
+            // #region agent log
+            fetch('http://127.0.0.1:7242/ingest/67eb3f48-ab69-4342-b4f8-aedc8e2c2b1b',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'run19',hypothesisId:'H22',location:'login.html:postAuthInit',message:'postAuthInit redirect',data:{hasCompany:true},timestamp:Date.now()})}).catch(()=>{});
+            // #endregion
             window.location.href = "manage.html";
         }
 
@@ -110,14 +175,26 @@
             const password = document.getElementById('auth-password').value.trim();
             if (!email || !password) {
                 setAuthMessage('Email and password are required.', true);
+                // #region agent log
+                fetch('http://127.0.0.1:7242/ingest/67eb3f48-ab69-4342-b4f8-aedc8e2c2b1b',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'run19',hypothesisId:'H22',location:'login.html:signIn',message:'missing credentials',data:{hasEmail:!!email,hasPassword:!!password},timestamp:Date.now()})}).catch(()=>{});
+                // #endregion
                 return;
             }
+            // #region agent log
+            fetch('http://127.0.0.1:7242/ingest/67eb3f48-ab69-4342-b4f8-aedc8e2c2b1b',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'run19',hypothesisId:'H22',location:'login.html:signIn',message:'signIn start',data:{},timestamp:Date.now()})}).catch(()=>{});
+            // #endregion
             const { data, error } = await supabase.auth.signInWithPassword({ email, password });
             if (error) {
                 setAuthMessage(error.message, true);
+                // #region agent log
+                fetch('http://127.0.0.1:7242/ingest/67eb3f48-ab69-4342-b4f8-aedc8e2c2b1b',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'run19',hypothesisId:'H22',location:'login.html:signIn',message:'signIn error',data:{hasError:true},timestamp:Date.now()})}).catch(()=>{});
+                // #endregion
                 return;
             }
             currentUser = data.user;
+            // #region agent log
+            fetch('http://127.0.0.1:7242/ingest/67eb3f48-ab69-4342-b4f8-aedc8e2c2b1b',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'run19',hypothesisId:'H22',location:'login.html:signIn',message:'signIn success',data:{hasUser:!!currentUser},timestamp:Date.now()})}).catch(()=>{});
+            // #endregion
             await postAuthInit();
         };
 
@@ -164,6 +241,38 @@
             }
             setAuthMessage('If the email is registered, a password reset link has been sent.');
         };
+
+        async function initExistingSession(trigger) {
+            if (autoLoginInProgress) return;
+            autoLoginInProgress = true;
+            // #region agent log
+            fetch('http://127.0.0.1:7242/ingest/67eb3f48-ab69-4342-b4f8-aedc8e2c2b1b',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'run21',hypothesisId:'H24',location:'login.html:initExistingSession',message:'session check start',data:{trigger},timestamp:Date.now()})}).catch(()=>{});
+            // #endregion
+            const { data } = await supabase.auth.getSession();
+            if (data.session) {
+                currentUser = data.session.user;
+                // #region agent log
+                fetch('http://127.0.0.1:7242/ingest/67eb3f48-ab69-4342-b4f8-aedc8e2c2b1b',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'run21',hypothesisId:'H24',location:'login.html:initExistingSession',message:'session found',data:{hasUser:!!currentUser},timestamp:Date.now()})}).catch(()=>{});
+                // #endregion
+                await postAuthInit();
+            }
+            autoLoginInProgress = false;
+        }
+
+        supabase.auth.onAuthStateChange((event, session) => {
+            if (event === 'SIGNED_IN' && session) {
+                currentUser = session.user;
+                initExistingSession('auth_state');
+            }
+        });
+
+        window.addEventListener('storage', (e) => {
+            if (e.key === authStorageKey) {
+                initExistingSession('storage');
+            }
+        });
+
+        initExistingSession('load');
     </script>
 </body>
 </html>
